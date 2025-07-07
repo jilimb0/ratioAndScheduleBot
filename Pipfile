@@ -1,0 +1,20 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[requires]
+python_version = "3.11.8"
+
+[packages]
+# Здесь можно добавить зависимости, если хочешь указывать вручную.
+# Но обычно удобнее импортировать из requirements.txt или добавить вручную.
+
+# Например, если хочешь перечислить:
+# requests = "*"
+# flask = "==2.2.3"
+
+[dev-packages]
+# Здесь можно указать пакеты для разработки, например:
+# black = "*"
+# pytest = "*"
