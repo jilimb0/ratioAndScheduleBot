@@ -1,15 +1,17 @@
 services:
 - type: web
   name: telegram-schedule-bot
-  env: python
+  plan: free
+  runtime: python
   buildCommand: pip install -r requirements.txt
   startCommand: python main.py
-  plan: free
   autoDeploy: true
   envVars:
   - key: BOT_TOKEN
     sync: false
-  - key: TIMEZONE
-    value: UTC
+  - key: WEBHOOK_URL
+    sync: false
   - key: PORT
     value: 8000
+  - key: TZ
+    value: Asia/Tbilisi
