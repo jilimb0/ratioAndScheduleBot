@@ -21,6 +21,9 @@ from handlers import (
 )
 from scheduler import start_scheduler, shutdown_scheduler
 from config import BOT_TOKEN, PORT, USE_WEBHOOK, WEBHOOK_URL
+from database import (
+    init_db
+)
 
 # Настройка логирования
 logging.basicConfig(
