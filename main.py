@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from telegram.ext import ApplicationBuilder
 
@@ -60,7 +59,7 @@ async def post_shutdown(application: Application):
     logger.info("Планировщик остановлен.")
 
 
-async def main() -> None:
+def main() -> None:
     """Основная функция для запуска бота."""
     logger.info("Запуск бота...")
     
@@ -83,11 +82,10 @@ async def main() -> None:
     # Запуск бота в зависимости от настроек
     if USE_WEBHOOK and WEBHOOK_URL and PORT:
         logger.info(f"Запуск с webhook на порту {PORT}")
-        await application.bot.set_webhook(WEBHOOK_URL)
-        await application.run_webhook(
+        application.run_webhook(
             listen="0.0.0.0",
             port=PORT,
-            url_path=BOT_TOKEN,  # Telegram будет слать POST на /{BOT_TOKEN}
+            url_path=BOT_TOKEN,
             webhook_url=WEBHOOK_URL,
         )
     else:
@@ -97,4 +95,4 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
