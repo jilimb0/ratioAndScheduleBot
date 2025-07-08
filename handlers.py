@@ -1,275 +1,200 @@
 import logging
-from datetime import datetime, date
-from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
-from telegram.ext import ContextTypes, CallbackContext
+import random
+from datetime import datetime, date, timedelta
+
+from telegram import Update
+from telegram.ext import ContextTypes
+from telegram import ReplyKeyboardMarkup, KeyboardButton
+
+# Предполагается, что эти файлы существуют и настроены корректно
 from database import (
-    register_user, update_user_activity, mark_task_completed, 
-    get_today_tasks_status, get_user_stats, get_completion_rate,
-    is_task_completed_today
+    register_user,
+    update_user_activity,
+    mark_task_completed,
+    get_today_tasks_status,
+    get_user_stats,
+    get_completion_rate,
+    is_task_completed_today,
 )
-from scheduler import get_scheduler
 from config import SCHEDULE, MESSAGES
 
 logger = logging.getLogger(__name__)
 
-# Создаем основную клавиатуру
-def get_main_keyboard():
-    """Создание основной клавиатуры"""
+# --- Клавиатуры ---
+
+def get_main_keyboard() -> ReplyKeyboardMarkup:
+    """Возвращает основную клавиатуру с кнопками."""
     keyboard = [
-        [KeyboardButton("📊 Статус"), KeyboardButton("📋 Отчёт")],
-        [KeyboardButton("🕐 Расписание"), KeyboardButton("ℹ️ Помощь")]
+        [KeyboardButton("📊 Статус"), KeyboardButton("📈 Отчёт")],
+        [KeyboardButton("🗓 Расписание"), KeyboardButton("ℹ️ Помощь")],
     ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
+
+# --- Обработчики команд и кнопок ---
 
 async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик команды /start"""
+    """Обработчик команды /start и кнопки 'Помощь'."""
+    user = update.effective_user
     try:
-        user = update.effective_user
-        user_id = user.id
-        
-        # Регистрируем пользователя
-        register_user(user_id, user.username, user.first_name, user.last_name)
-        
-        # Добавляем пользователя в активные для планировщика
-        scheduler = get_scheduler()
-        if scheduler:
-            scheduler.add_user(user_id)
-            
-        # Отправляем приветственное сообщение с клавиатурой
+        # Регистрация или обновление данных пользователя в БД
+        register_user(user_id=user.id, username=user.username, first_name=user.first_name)
+        logger.info(f"Пользователь {user.id} ({user.username}) запустил/перезапустил бота.")
+
         await update.message.reply_text(
-            MESSAGES["start"],
-            reply_markup=get_main_keyboard()
+            MESSAGES.get("start", "Добро пожаловать!"),
+            reply_markup=get_main_keyboard(),
         )
-        
-        logger.info(f"Пользователь {user_id} ({user.username}) запустил бота")
-        
     except Exception as e:
-        logger.error(f"Ошибка в start_handler: {e}")
-        await update.message.reply_text("Произошла ошибка. Попробуйте позже.")
+        logger.error(f"Ошибка в start_handler для user_id {user.id}: {e}")
+        await update.message.reply_text("Произошла ошибка при запуске. Попробуйте позже.")
+
 
 async def status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик команды /статус"""
+    """Показывает статус выполнения задач на сегодня."""
+    user = update.effective_user
     try:
-        user_id = update.effective_user.id
-        update_user_activity(user_id)
-        
-        # Получаем статус задач на сегодня
-        tasks_status = get_today_tasks_status(user_id)
-        
+        update_user_activity(user.id)
+        tasks_status = get_today_tasks_status(user.id)
+
         if not tasks_status:
-            await update.message.reply_text(MESSAGES["no_tasks_today"])
+            await update.message.reply_text(MESSAGES.get("no_tasks_today", "На сегодня задач нет."))
             return
-            
-        # Формируем сообщение со статусом
-        status_text = MESSAGES["status_header"] + "\n\n"
-        
+
+        status_lines = [MESSAGES.get("status_header", "Статус на сегодня:")]
         for task_key, is_completed in tasks_status.items():
-            if task_key in SCHEDULE:
-                task_name = SCHEDULE[task_key]["button_text"].replace(" ✅", "")
-                task_time = SCHEDULE[task_key]["time"].strftime("%H:%M")
-                
+            task_config = SCHEDULE.get(task_key)
+            if task_config:
+                task_name = task_config.get("button_text", task_key).replace(" ✅", "")
+                task_time = task_config.get("time").strftime("%H:%M")
                 status_icon = "✅" if is_completed else "⏳"
-                status_text += f"{status_icon} {task_time} - {task_name}\n"
-                
-        # Добавляем статистику
-        completion_rate = get_completion_rate(user_id, days=7)
-        status_text += f"\n📈 Выполнение за неделю: {completion_rate:.1f}%"
-        
-        await update.message.reply_text(status_text)
-        
+                status_lines.append(f"{status_icon} {task_time} - {task_name}")
+
+        completion_rate = get_completion_rate(user.id, days=7)
+        status_lines.append(f"\n📈 Выполнение за неделю: {completion_rate:.1f}%")
+
+        await update.message.reply_text("\n".join(status_lines))
     except Exception as e:
-        logger.error(f"Ошибка в status_handler: {e}")
-        await update.message.reply_text("Произошла ошибка при получении статуса.")
+        logger.error(f"Ошибка в status_handler для user_id {user.id}: {e}")
+        await update.message.reply_text("Не удалось получить статус. Попробуйте снова.")
+
 
 async def report_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик команды /отчёт"""
+    """Показывает отчёт о выполненных задачах за последнюю неделю."""
+    user = update.effective_user
     try:
-        user_id = update.effective_user.id
-        update_user_activity(user_id)
-        
-        # Получаем статистику за последние 7 дней
-        stats = get_user_stats(user_id, days=7)
-        
+        update_user_activity(user.id)
+        stats = get_user_stats(user.id, days=7)
+
         if not stats:
-            await update.message.reply_text("📅 За последние 7 дней данных нет.")
+            await update.message.reply_text("📊 За последние 7 дней данных для отчёта нет.")
             return
-            
-        report_text = MESSAGES["report_header"] + "\n\n"
-        
-        # Сортируем даты по убыванию
+
+        report_lines = [MESSAGES.get("report_header", "Отчёт за 7 дней:")]
         sorted_dates = sorted(stats.keys(), reverse=True)
-        
-        for date_str in sorted_dates[:7]:  # Показываем только последние 7 дней
+
+        for date_str in sorted_dates:
             tasks = stats[date_str]
-            date_obj = datetime.strptime(date_str, "%Y-%m-%d")
-            formatted_date = date_obj.strftime("%d.%m.%Y")
+            date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
             
-            if date_obj.date() == date.today():
-                formatted_date += " (сегодня)"
-            elif date_obj.date() == date.today() - timedelta(days=1):
-                formatted_date += " (вчера)"
-                
-            report_text += f"📅 {formatted_date}:\n"
+            day_label = ""
+            if date_obj == date.today():
+                day_label = " (сегодня)"
+            elif date_obj == date.today() - timedelta(days=1):
+                day_label = " (вчера)"
             
+            report_lines.append(f"\n📅 {date_obj.strftime('%d.%m.%Y')}{day_label}:")
             for task in tasks:
-                task_name = task['task_name'].replace(" ✅", "")
-                report_text += f"  ✅ {task_name}\n"
-                
-            report_text += "\n"
-            
-        # Добавляем общую статистику
-        completion_rate = get_completion_rate(user_id, days=7)
-        report_text += f"📊 Общая эффективность: {completion_rate:.1f}%"
-        
-        await update.message.reply_text(report_text)
-        
+                task_name = task.get('task_name', 'Неизвестная задача').replace(" ✅", "")
+                report_lines.append(f"  ✅ {task_name}")
+
+        completion_rate = get_completion_rate(user.id, days=7)
+        report_lines.append(f"\n\n📊 Общая эффективность: {completion_rate:.1f}%")
+
+        await update.message.reply_text("\n".join(report_lines))
     except Exception as e:
-        logger.error(f"Ошибка в report_handler: {e}")
-        await update.message.reply_text("Произошла ошибка при создании отчёта.")
+        logger.error(f"Ошибка в report_handler для user_id {user.id}: {e}")
+        await update.message.reply_text("Не удалось создать отчёт.")
+
 
 async def schedule_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик команды /расписание"""
+    """Показывает полное расписание задач."""
+    user = update.effective_user
     try:
-        user_id = update.effective_user.id
-        update_user_activity(user_id)
+        update_user_activity(user.id)
+        schedule_lines = [MESSAGES.get("schedule_header", "Ваше расписание:")]
         
-        schedule_text = MESSAGES["schedule_header"] + "\n\n"
-        
-        # Сортируем задачи по времени
-        sorted_tasks = sorted(SCHEDULE.items(), key=lambda x: x[1]["time"])
-        
+        sorted_tasks = sorted(SCHEDULE.items(), key=lambda item: item[1].get("time"))
+
         for task_key, task_config in sorted_tasks:
-            task_time = task_config["time"].strftime("%H:%M")
-            task_name = task_config["button_text"].replace(" ✅", "")
-            
-            # Проверяем, выполнена ли задача сегодня
-            is_completed = is_task_completed_today(user_id, task_key)
+            task_time = task_config.get("time").strftime("%H:%M")
+            task_name = task_config.get("button_text", task_key).replace(" ✅", "")
+            is_completed = is_task_completed_today(user.id, task_key)
             status_icon = "✅" if is_completed else "⏰"
-            
-            schedule_text += f"{status_icon} {task_time} - {task_name}\n"
-            
-        await update.message.reply_text(schedule_text)
-        
+            schedule_lines.append(f"{status_icon} {task_time} - {task_name}")
+
+        await update.message.reply_text("\n".join(schedule_lines))
     except Exception as e:
-        logger.error(f"Ошибка в schedule_handler: {e}")
-        await update.message.reply_text("Произошла ошибка при показе расписания.")
+        logger.error(f"Ошибка в schedule_handler для user_id {user.id}: {e}")
+        await update.message.reply_text("Не удалось показать расписание.")
+
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик нажатий на кнопки"""
+    """Обработчик нажатий на inline-кнопки (например, 'Выполнить')."""
+    query = update.callback_query
+    await query.answer()  # Обязательно подтвердить получение callback'а
+
+    user = query.from_user
+    task_key = query.data.replace("complete_", "")
+    
     try:
-        query = update.callback_query
-        await query.answer()
-        
-        user_id = query.from_user.id
-        update_user_activity(user_id)
-        
-        # Разбираем callback_data
-        if query.data.startswith("complete_"):
-            task_key = query.data.replace("complete_", "")
-            
-            if task_key in SCHEDULE:
-                task_config = SCHEDULE[task_key]
-                task_name = task_config["button_text"]
-                
-                # Пытаемся отметить задачу как выполненную
-                if mark_task_completed(user_id, task_key, task_name):
-                    await query.edit_message_text(
-                        text=f"{task_config['message']}\n\n{MESSAGES['task_completed']}"
-                    )
-                    
-                    # Отправляем мотивирующее сообщение
-                    motivational_messages = [
-                        "🎉 Отлично! Так держать!",
-                        "💪 Ты молодец! Продолжай в том же духе!",
-                        "⭐ Супер! Еще один шаг к цели!",
-                        "🚀 Великолепно! Ты на правильном пути!",
-                        "🌟 Браво! Каждое выполненное дело приближает к успеху!"
-                    ]
-                    
-                    import random
-                    motivation = random.choice(motivational_messages)
-                    await context.bot.send_message(chat_id=user_id, text=motivation)
-                    
-                else:
-                    await query.edit_message_text(
-                        text=f"{task_config['message']}\n\n{MESSAGES['task_already_completed']}"
-                    )
-                    
-            else:
-                await query.edit_message_text("Неизвестная задача.")
-                
+        update_user_activity(user.id)
+        task_config = SCHEDULE.get(task_key)
+
+        if not task_config:
+            await query.edit_message_text("Ошибка: задача не найдена.")
+            return
+
+        task_name = task_config.get("button_text", "Задача")
+        if mark_task_completed(user.id, task_key, task_name):
+            await query.edit_message_text(
+                f"{task_config.get('message', '')}\n\n{MESSAGES.get('task_completed', 'Задача выполнена!')}"
+            )
+            # Отправляем отдельное мотивирующее сообщение
+            motivational_message = random.choice(MESSAGES.get("motivational", ["Отлично!"]))
+            await context.bot.send_message(chat_id=user.id, text=motivational_message)
+        else:
+            await query.edit_message_text(
+                f"{task_config.get('message', '')}\n\n{MESSAGES.get('task_already_completed', 'Задача уже была выполнена.')}"
+            )
     except Exception as e:
-        logger.error(f"Ошибка в button_handler: {e}")
+        logger.error(f"Ошибка в button_handler для user_id {user.id} и task_key {task_key}: {e}")
         await query.edit_message_text("Произошла ошибка при обработке нажатия.")
 
+
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик текстовых сообщений"""
+    """Обработчик всех текстовых сообщений, включая нажатия на Reply-кнопки."""
+    user = update.effective_user
+    text = update.message.text.lower().strip()
+
+    # Убираем эмодзи для более простого сравнения
+    clean_text = text.replace("📊 ", "").replace("📈 ", "").replace("🗓 ", "").replace("ℹ️ ", "")
+
     try:
-        user_id = update.effective_user.id
-        message_text = update.message.text.lower()
-        update_user_activity(user_id)
-        
-        # Обрабатываем нажатия на кнопки клавиатуры
-        if message_text in ["📊 статус", "статус"]:
+        # Маршрутизация на основе текста кнопки
+        if clean_text == "статус":
             await status_handler(update, context)
-            return
-            
-        elif message_text in ["📋 отчёт", "отчёт"]:
+        elif clean_text == "отчёт":
             await report_handler(update, context)
-            return
-            
-        elif message_text in ["🕐 расписание", "расписание"]:
+        elif clean_text == "расписание":
             await schedule_handler(update, context)
-            return
-            
-        elif message_text in ["ℹ️ помощь", "помощь"]:
+        elif clean_text == "помощь":
             await start_handler(update, context)
-            return
-            
-        # Обрабатываем простые ответы о выполнении задач
-        task_keywords = {
-            "тренировка": "morning_workout",
-            "тренировку": "morning_workout",
-            "зарядка": "morning_workout",
-            "завтрак": "breakfast",
-            "поел": "breakfast",
-            "завтракал": "breakfast",
-            "обед": "lunch",
-            "пообедал": "lunch",
-            "язык": "language_study",
-            "английский": "language_study",
-            "изучение": "language_study",
-            "ужин": "dinner",
-            "поужинал": "dinner",
-            "отчёт": "daily_report",
-            "отчет": "daily_report",
-            "доклад": "daily_report"
-        }
-        
-        # Ищем совпадения в тексте сообщения
-        for keyword, task_key in task_keywords.items():
-            if keyword in message_text:
-                if any(word in message_text for word in ["сделал", "выполнил", "готов", "сделана", "выполнена"]):
-                    if task_key in SCHEDULE:
-                        task_config = SCHEDULE[task_key]
-                        task_name = task_config["button_text"]
-                        
-                        if mark_task_completed(user_id, task_key, task_name):
-                            await update.message.reply_text(
-                                f"✅ Отлично! {task_name.replace(' ✅', '')} отмечено как выполненное!"
-                            )
-                        else:
-                            await update.message.reply_text(
-                                f"ℹ️ {task_name.replace(' ✅', '')} уже выполнено сегодня."
-                            )
-                        return
-                        
-        # Если не нашли совпадений, отправляем стандартное сообщение
-        await update.message.reply_text(
-            MESSAGES["unknown_message"],
-            reply_markup=get_main_keyboard()
-        )
-        
+        else:
+            # Если текст не похож на кнопку, отправляем стандартный ответ
+            await update.message.reply_text(
+                MESSAGES.get("unknown_message", "Я вас не понимаю."),
+                reply_markup=get_main_keyboard()
+            )
     except Exception as e:
-        logger.error(f"Ошибка в message_handler: {e}")
-        await update.message.reply_text("Произошла ошибка при обработке сообщения.")
+        logger.error(f"Ошибка в message_handler для user_id {user.id} с текстом '{text}': {e}")
+        await update.message.reply_text("Произошла ошибка при обработке вашего сообщения.")

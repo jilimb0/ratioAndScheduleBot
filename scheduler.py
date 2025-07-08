@@ -1,179 +1,135 @@
-import asyncio
 import logging
-from datetime import datetime, time, timedelta
-from typing import Dict, Set
-from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
-from config import SCHEDULE
-from database import get_user_stats, update_user_activity
+import random
+from telegram.ext import Application
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
+
+from config import SCHEDULE, MESSAGES  # Конфигурация задач и сообщений
+from database import get_all_active_user_ids, is_task_completed_today, get_today_tasks_status # Новая функция в database.py
 
 logger = logging.getLogger(__name__)
 
-class TaskScheduler:
-    def __init__(self, bot: Bot):
-        self.bot = bot
-        self.active_users: Set[int] = set()
-        self.running = False
-        
-    def add_user(self, user_id: int):
-        """Добавление пользователя в активные"""
-        self.active_users.add(user_id)
-        logger.info(f"Пользователь {user_id} добавлен в активные")
-        
-    def remove_user(self, user_id: int):
-        """Удаление пользователя из активных"""
-        self.active_users.discard(user_id)
-        logger.info(f"Пользователь {user_id} удален из активных")
-        
-    async def send_reminder(self, user_id: int, task_key: str, task_config: Dict):
-        """Отправка напоминания пользователю"""
-        try:
-            # Создаем кнопку для отметки выполнения
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton(
-                    task_config["button_text"], 
-                    callback_data=f"complete_{task_key}"
-                )]
-            ])
-            
-            await self.bot.send_message(
-                chat_id=user_id,
-                text=task_config["message"],
-                reply_markup=keyboard
-            )
-            
-            logger.info(f"Напоминание {task_key} отправлено пользователю {user_id}")
-            
-        except Exception as e:
-            logger.error(f"Ошибка при отправке напоминания {task_key} пользователю {user_id}: {e}")
-            # Если не удалось отправить сообщение, возможно пользователь заблокировал бота
-            if "blocked" in str(e).lower() or "not found" in str(e).lower():
-                self.remove_user(user_id)
-                
-    async def check_and_send_reminders(self):
-        """Проверка времени и отправка напоминаний"""
-        current_time = datetime.now().time()
-        
-        for task_key, task_config in SCHEDULE.items():
-            task_time = task_config["time"]
-            
-            # Проверяем, совпадает ли текущее время с временем задачи (с точностью до минуты)
-            if (current_time.hour == task_time.hour and 
-                current_time.minute == task_time.minute):
-                
-                # Отправляем напоминания всем активным пользователям
-                for user_id in self.active_users.copy():
-                    await self.send_reminder(user_id, task_key, task_config)
-                    
-                # Небольшая задержка между отправками
-                await asyncio.sleep(0.1)
-                
-    async def send_daily_summary(self):
-        """Отправка ежедневной сводки в конце дня"""
-        try:
-            summary_time = time(22, 0)  # 22:00
-            current_time = datetime.now().time()
-            
-            if (current_time.hour == summary_time.hour and 
-                current_time.minute == summary_time.minute):
-                
-                for user_id in self.active_users.copy():
-                    try:
-                        stats = get_user_stats(user_id, days=1)
-                        if stats:
-                            today_str = datetime.now().strftime("%Y-%m-%d")
-                            today_tasks = stats.get(today_str, [])
-                            
-                            if today_tasks:
-                                summary = "🌟 Сводка дня:\n\n"
-                                for task in today_tasks:
-                                    summary += f"✅ {task['task_name']}\n"
-                                summary += f"\n🎯 Выполнено задач: {len(today_tasks)}"
-                            else:
-                                summary = "📅 Сегодня задачи не выполнялись. Завтра новый день - новые возможности! 💪"
-                                
-                            await self.bot.send_message(
-                                chat_id=user_id,
-                                text=summary
-                            )
-                            
-                    except Exception as e:
-                        logger.error(f"Ошибка при отправке сводки пользователю {user_id}: {e}")
-                        
-        except Exception as e:
-            logger.error(f"Ошибка при отправке ежедневных сводок: {e}")
-            
-    async def scheduler_loop(self):
-        """Основной цикл планировщика"""
-        self.running = True
-        logger.info("Планировщик запущен")
-        
-        while self.running:
+# Инициализируем планировщик
+scheduler = AsyncIOScheduler(timezone="Europe/Moscow") # Укажите ваш часовой пояс
+
+# --- Функции-задачи (Jobs) ---
+
+async def send_reminder_job(app: Application, task_key: str):
+    """Задача: отправить напоминание по конкретной задаче всем активным пользователям."""
+    task_config = SCHEDULE.get(task_key)
+    if not task_config:
+        logger.warning(f"Конфигурация для задачи {task_key} не найдена.")
+        return
+
+    logger.info(f"Запускаю рассылку напоминания для задачи: {task_key}")
+    
+    # 1. Получаем ID всех активных пользователей прямо из БД
+    user_ids = get_all_active_user_ids()
+    if not user_ids:
+        logger.info("Нет активных пользователей для отправки напоминаний.")
+        return
+
+    # 2. Создаем кнопку один раз
+    keyboard = InlineKeyboardMarkup([[
+        InlineKeyboardButton(
+            task_config["button_text"],
+            callback_data=f"complete_{task_key}"
+        )
+    ]])
+
+    # 3. Рассылаем напоминания
+    for user_id in user_ids:
+        # Проверяем, не выполнил ли пользователь уже эту задачу
+        if not is_task_completed_today(user_id, task_key):
             try:
-                await self.check_and_send_reminders()
-                await self.send_daily_summary()
-                
-                # Ожидаем 60 секунд перед следующей проверкой
-                await asyncio.sleep(60)
-                
-            except Exception as e:
-                logger.error(f"Ошибка в цикле планировщика: {e}")
-                await asyncio.sleep(60)
-                
-    def stop(self):
-        """Остановка планировщика"""
-        self.running = False
-        logger.info("Планировщик остановлен")
-
-# Глобальный экземпляр планировщика
-scheduler = None
-
-async def start_scheduler(bot: Bot):
-    """Запуск планировщика"""
-    global scheduler
-    scheduler = TaskScheduler(bot)
-    
-    # Запускаем планировщик в фоновом режиме
-    asyncio.create_task(scheduler.scheduler_loop())
-    
-def get_scheduler() -> TaskScheduler:
-    """Получение экземпляра планировщика"""
-    global scheduler
-    return scheduler
-
-async def send_motivational_message():
-    """Отправка мотивационных сообщений"""
-    motivational_messages = [
-        "💪 Помни: каждый день - это новая возможность стать лучше!",
-        "🌟 Маленькие шаги каждый день приводят к большим результатам!",
-        "🎯 Ты можешь больше, чем думаешь. Продолжай идти к цели!",
-        "🚀 Успех - это сумма небольших усилий, повторяемых изо дня в день!",
-        "⭐ Будь терпелив с собой. Прогресс требует времени!",
-    ]
-    
-    import random
-    message = random.choice(motivational_messages)
-    
-    if scheduler:
-        for user_id in scheduler.active_users.copy():
-            try:
-                await scheduler.bot.send_message(
+                await app.bot.send_message(
                     chat_id=user_id,
-                    text=message
+                    text=task_config["message"],
+                    reply_markup=keyboard
                 )
+                await asyncio.sleep(0.1) # Небольшая задержка между отправками
             except Exception as e:
-                logger.error(f"Ошибка при отправке мотивационного сообщения пользователю {user_id}: {e}")
+                logger.error(f"Не удалось отправить напоминание {task_key} пользователю {user_id}: {e}")
 
-# Функция для отправки мотивационных сообщений в случайное время
-async def schedule_motivational_messages():
-    """Планирование мотивационных сообщений"""
-    import random
+
+async def send_daily_summary_job(app: Application):
+    """Задача: отправить в конце дня сводку о выполненных задачах."""
+    logger.info("Запускаю рассылку ежедневных сводок.")
+    user_ids = get_all_active_user_ids()
+
+    for user_id in user_ids:
+        try:
+            tasks_status = get_today_tasks_status(user_id)
+            completed_tasks = [
+                SCHEDULE[key]['button_text'].replace(" ✅", "")
+                for key, done in tasks_status.items() if done
+            ]
+
+            if completed_tasks:
+                summary = "🌟 **Сводка дня:**\n\n"
+                summary += "\n".join(f"✅ {name}" for name in completed_tasks)
+                summary += f"\n\nОтличная работа! Выполнено задач: **{len(completed_tasks)}** 💪"
+            else:
+                summary = "📅 Сегодня не было отмечено выполненных задач. Завтра — новый день для достижений!"
+            
+            await app.bot.send_message(chat_id=user_id, text=summary, parse_mode='Markdown')
+            await asyncio.sleep(0.1)
+        except Exception as e:
+            logger.error(f"Не удалось отправить сводку пользователю {user_id}: {e}")
+
+
+async def send_motivational_message_job(app: Application):
+    """Задача: отправить случайное мотивационное сообщение."""
+    logger.info("Запускаю рассылку мотивационных сообщений.")
+    message = random.choice(MESSAGES.get("motivational", []))
+    if not message:
+        return
+
+    user_ids = get_all_active_user_ids()
+    for user_id in user_ids:
+        try:
+            await app.bot.send_message(chat_id=user_id, text=message)
+            await asyncio.sleep(0.1)
+        except Exception as e:
+            logger.error(f"Не удалось отправить мотивацию пользователю {user_id}: {e}")
+
+
+# --- Управление планировщиком ---
+
+async def start_scheduler(app: Application):
+    """
+    Инициализирует и запускает все задачи в планировщике.
+    Вызывается один раз при старте бота через post_init.
+    """
+    # 1. Добавляем задачу-напоминание для каждого элемента в SCHEDULE
+    for task_key, config in SCHEDULE.items():
+        task_time = config['time']
+        scheduler.add_job(
+            send_reminder_job,
+            trigger='cron',
+            hour=task_time.hour,
+            minute=task_time.minute,
+            args=[app, task_key],
+            id=f"reminder_{task_key}" # Уникальный ID для каждой задачи
+        )
+        logger.info(f"Задача-напоминание '{task_key}' запланирована на {task_time.strftime('%H:%M')}.")
+
+    # 2. Добавляем задачу для ежедневной сводки
+    scheduler.add_job(send_daily_summary_job, trigger='cron', hour=22, minute=0, args=[app], id="daily_summary")
+    logger.info("Задача для ежедневной сводки запланирована на 22:00.")
+
+    # 3. Добавляем задачу для мотивационных сообщений (например, в 10, 14, 18 часов)
+    scheduler.add_job(send_motivational_message_job, trigger='cron', hour='10,14,18', minute=5, args=[app], id="motivational")
+    logger.info("Задача для мотивационных сообщений запланирована на 10:05, 14:05, 18:05.")
     
-    while True:
-        # Ждем случайное время от 2 до 6 часов
-        wait_time = random.randint(2*3600, 6*3600)
-        await asyncio.sleep(wait_time)
-        
-        # Отправляем мотивационное сообщение в рабочее время (9:00 - 20:00)
-        current_hour = datetime.now().hour
-        if 9 <= current_hour <= 20:
-            await send_motivational_message()
+    # Запускаем сам планировщик
+    scheduler.start()
+    logger.info("Планировщик запущен со всеми задачами.")
+
+
+async def shutdown_scheduler():
+    """Корректно останавливает планировщик при выключении бота."""
+    if scheduler.running:
+        scheduler.shutdown()
+        logger.info("Планировщик остановлен.")
