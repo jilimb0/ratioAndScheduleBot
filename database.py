@@ -191,3 +191,17 @@ def is_task_completed_today(user_id: int, task_key: str) -> bool:
             f"для пользователя {user_id} на дату {today}: {e}"
         )
         return False
+
+@db_connection
+def get_all_active_user_ids(cursor: sqlite3.Cursor) -> List[int]:
+    """
+    Возвращает список ID всех пользователей, которые были активны 
+    за последние 30 дней.
+    """
+    # Считаем активными тех, кто проявлял активность за последние 30 дней
+    thirty_days_ago = datetime.now() - timedelta(days=30)
+    cursor.execute('SELECT user_id FROM users WHERE last_activity > ?', (thirty_days_ago,))
+    
+    # fetchall() вернет список кортежей, например [(123,), (456,)]
+    # Преобразуем его в простой список [123, 456]
+    return [row['user_id'] for row in cursor.fetchall()]
