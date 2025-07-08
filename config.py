@@ -227,7 +227,3 @@ async def main() -> None:
 async def unknown_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обрабатывает неизвестные сообщения."""
     await update.message.reply_text(MESSAGES["unknown_message"])
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
