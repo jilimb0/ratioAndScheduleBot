@@ -60,7 +60,7 @@ async def post_shutdown(application: Application):
     logger.info("Планировщик остановлен.")
 
 
-def main() -> None:
+async def main() -> None:
     """Основная функция для запуска бота."""
     logger.info("Запуск бота...")
     
