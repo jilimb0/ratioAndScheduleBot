@@ -68,9 +68,10 @@ MESSAGES = {
 }
 
 # Настройки для веб-сервера (для деплоя)
-PORT = int(os.getenv('PORT', 8000))
-WEBHOOK_URL = os.getenv('WEBHOOK_URL', '')
-USE_WEBHOOK = os.getenv('USE_WEBHOOK', 'False').lower() == 'true'
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+PORT = int(os.getenv("PORT", 8000))
+USE_WEBHOOK = os.getenv("USE_WEBHOOK", "false").lower() == "true"
 
 # Словарь для хранения статуса выполнения задач для каждого пользователя
 user_task_status = {}

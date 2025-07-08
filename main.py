@@ -1,5 +1,7 @@
 import asyncio
 import logging
+from telegram.ext import ApplicationBuilder
+
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -63,13 +65,8 @@ def main() -> None:
     logger.info("Запуск бота...")
     
     # Создание приложения с указанием хуков жизненного цикла
-    application = (
-        Application.builder()
-        .token(BOT_TOKEN)
-        .post_init(post_init)
-        .post_shutdown(post_shutdown)
-        .build()
-    )
+    application = ApplicationBuilder().token(BOT_TOKEN).build()
+
 
     # Регистрация обработчиков команд
     application.add_handler(CommandHandler("start", start_handler))
@@ -86,11 +83,12 @@ def main() -> None:
     # Запуск бота в зависимости от настроек
     if USE_WEBHOOK and WEBHOOK_URL and PORT:
         logger.info(f"Запуск с webhook на порту {PORT}")
-        application.run_webhook(
+        await application.bot.set_webhook(WEBHOOK_URL)
+        await application.run_webhook(
             listen="0.0.0.0",
             port=PORT,
-            url_path=BOT_TOKEN,
-            webhook_url=f"{WEBHOOK_URL}/{BOT_TOKEN}"
+            url_path=BOT_TOKEN,  # Telegram будет слать POST на /{BOT_TOKEN}
+            webhook_url=WEBHOOK_URL,
         )
     else:
         logger.info("Запуск с polling")
@@ -99,5 +97,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    # init_db() # Если инициализация БД не требует async, ее можно выполнить здесь
-    main()
+    import asyncio
+    asyncio.run(main())
