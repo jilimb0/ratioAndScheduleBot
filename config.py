@@ -40,7 +40,7 @@ SCHEDULE = {
 TIMEZONE = os.getenv('TIMEZONE', 'UTC')
 
 # Настройки базы данных (просто объявление)
-DATABASE_PATH = "database.py"  # Вам потребуется реализовать взаимодействие с БД
+DATABASE_PATH = "bot_data.db"  # Вам потребуется реализовать взаимодействие с БД
 
 # Сообщения бота
 MESSAGES = {

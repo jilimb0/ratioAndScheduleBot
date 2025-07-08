@@ -1,6 +1,6 @@
 import sqlite3
 import logging
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from functools import wraps
 from typing import List, Dict, Optional, Any, Callable
 
@@ -170,26 +170,18 @@ def get_completion_rate(cursor: sqlite3.Cursor, user_id: int, days: int = 7) -> 
     return (completed_tasks / total_possible_tasks) * 100
 
 @db_connection
-def is_task_completed_today(user_id: int, task_key: str) -> bool:
-    """Проверяет, выполнена ли задача с данным ключом у пользователя сегодня."""
-
-    today = date.today()
-
+def is_task_completed_today(cursor, user_id: int, task_key: str) -> bool:
+    """Проверка, выполнена ли задача сегодня"""
     try:
-        with sqlite3.connect(DATABASE_PATH) as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                SELECT COUNT(*) FROM tasks
-                WHERE user_id = ? AND task_key = ? AND completion_date = ? AND is_completed = 1
-            ''', (user_id, task_key, today))
-            result = cursor.fetchone()[0] > 0
-            return result
-
+        today = date.today()
+        cursor.execute('''
+            SELECT COUNT(*) FROM tasks
+            WHERE user_id = ? AND task_key = ? AND completion_date = ? AND is_completed = 1
+        ''', (user_id, task_key, today))
+        result = cursor.fetchone()[0] > 0
+        return result
     except sqlite3.Error as e:
-        logger.error(
-            f"[is_task_completed_today] Ошибка при проверке задачи '{task_key}' "
-            f"для пользователя {user_id} на дату {today}: {e}"
-        )
+        logger.error(f"Ошибка при проверке задачи {task_key} для пользователя {user_id}: {e}")
         return False
 
 @db_connection
