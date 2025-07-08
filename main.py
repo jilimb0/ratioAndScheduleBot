@@ -86,7 +86,7 @@ def main() -> None:
             listen="0.0.0.0",
             port=PORT,
             url_path=BOT_TOKEN,
-            webhook_url=WEBHOOK_URL,
+            webhook_url=f"https://ratioandschedulebot.onrender.com/{BOT_TOKEN}",
         )
     else:
         logger.info("Запуск с polling")
