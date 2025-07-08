@@ -43,7 +43,7 @@ async def post_init(application: Application):
     """
     await start_scheduler(application)
     # Здесь можно инициализировать соединение с БД, если это необходимо
-    # init_db()
+    init_db()
 
 
 async def post_shutdown(application: Application):

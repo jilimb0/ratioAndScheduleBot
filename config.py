@@ -40,7 +40,7 @@ SCHEDULE = {
 TIMEZONE = os.getenv('TIMEZONE', 'UTC')
 
 # Настройки базы данных (просто объявление)
-DATABASE_PATH = "bot_data.db"  # Вам потребуется реализовать взаимодействие с БД
+DATABASE_PATH = "database.py"  # Вам потребуется реализовать взаимодействие с БД
 
 # Сообщения бота
 MESSAGES = {
@@ -164,16 +164,16 @@ async def send_scheduled_reminders(app: CCT) -> None:
                 # Здесь должна быть логика рассылки напоминаний всем пользователям.
                 # Вам потребуется хранить user_id пользователей, подписанных на напоминания.
                 # Пример (нужно заменить на вашу реальную логику):
-                # for user_id in get_all_user_ids():
-                #     try:
-                #         await app.bot.send_message(user_id, message, reply_markup=reply_markup)
-                #         # Инициализация статуса задачи на сегодня для пользователя, если еще не сделано
-                #         if user_id not in user_task_status or today_str not in user_task_status[user_id]:
-                #             user_task_status[user_id] = user_task_status.get(user_id, {})
-                #             user_task_status[user_id][today_str] = user_task_status[user_id].get(today_str, {})
-                #             user_task_status[user_id][today_str][task_name] = "pending"
-                #     except Exception as e:
-                #         logger.error(f"Не удалось отправить напоминание пользователю {user_id}: {e}")
+                for user_id in get_all_user_ids():
+                    try:
+                        await app.bot.send_message(user_id, message, reply_markup=reply_markup)
+                        # Инициализация статуса задачи на сегодня для пользователя, если еще не сделано
+                        if user_id not in user_task_status or today_str not in user_task_status[user_id]:
+                            user_task_status[user_id] = user_task_status.get(user_id, {})
+                            user_task_status[user_id][today_str] = user_task_status[user_id].get(today_str, {})
+                            user_task_status[user_id][today_str][task_name] = "pending"
+                    except Exception as e:
+                        logger.error(f"Не удалось отправить напоминание пользователю {user_id}: {e}")
         await asyncio.sleep(60)  # Проверять каждую минуту
 
 
