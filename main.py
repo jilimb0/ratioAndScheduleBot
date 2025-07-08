@@ -70,9 +70,9 @@ def main() -> None:
 
     # Регистрация обработчиков команд
     application.add_handler(CommandHandler("start", start_handler))
-    application.add_handler(CommandHandler(["статус", "status"], status_handler))
-    application.add_handler(CommandHandler(["отчёт", "report"], report_handler))
-    application.add_handler(CommandHandler(["расписание", "schedule"], schedule_handler))
+    application.add_handler(CommandHandler("status", status_handler))
+    application.add_handler(CommandHandler("report", report_handler))
+    application.add_handler(CommandHandler("schedule", schedule_handler))
     
     # Обработчик кнопок
     application.add_handler(CallbackQueryHandler(button_handler))
