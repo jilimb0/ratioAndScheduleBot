@@ -1,5 +1,0 @@
----
-description: Project context and conventions for ratioAndScheduleBot
-globs: "*"
----
-Read AGENTS.md and CLAUDE.md in the project root for full project context including tech stack, commands, architecture, and conventions.
