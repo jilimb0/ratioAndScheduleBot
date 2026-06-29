@@ -1,0 +1,18 @@
+version: "3.8"
+
+services:
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ratio-schedule-bot
+    restart: unless-stopped
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - TIMEZONE=${TIMEZONE:-Europe/Moscow}
+      - USE_WEBHOOK=${USE_WEBHOOK:-false}
+    volumes:
+      - bot-data:/app
+
+volumes:
+  bot-data:

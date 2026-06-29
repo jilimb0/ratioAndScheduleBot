@@ -1,22 +1,22 @@
 import asyncio
 import logging
 import random
-from telegram.ext import Application
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.cron import CronTrigger
 
-from config import SCHEDULE, MESSAGES  # Конфигурация задач и сообщений
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application
+
+from config import MESSAGES, SCHEDULE, TIMEZONE  # Конфигурация задач и сообщений
 from database import (
     get_all_active_user_ids,
-    is_task_completed_today,
     get_today_tasks_status,
+    is_task_completed_today,
 )  # Новая функция в database.py
 
 logger = logging.getLogger(__name__)
 
 # Инициализируем планировщик
-scheduler = AsyncIOScheduler(timezone="Europe/Moscow")  # Укажите ваш часовой пояс
+scheduler = AsyncIOScheduler(timezone=TIMEZONE)
 
 # --- Функции-задачи (Jobs) ---
 
@@ -38,13 +38,7 @@ async def send_reminder_job(app: Application, task_key: str):
 
     # 2. Создаем кнопку один раз
     keyboard = InlineKeyboardMarkup(
-        [
-            [
-                InlineKeyboardButton(
-                    task_config["button_text"], callback_data=f"complete_{task_key}"
-                )
-            ]
-        ]
+        [[InlineKeyboardButton(task_config["button_text"], callback_data=f"complete_{task_key}")]]
     )
 
     # 3. Рассылаем напоминания
@@ -81,11 +75,9 @@ async def send_daily_summary_job(app: Application):
                 summary += "\n".join(f"✅ {name}" for name in completed_tasks)
                 summary += f"\n\nОтличная работа! Выполнено задач: **{len(completed_tasks)}** 💪"
             else:
-                summary = "📅 Сегодня не было отмечено выполненных задач. Завтра — новый день для достижений!"
+                summary = "📅 Сегодня не было выполненных задач. Новый день — новые достижения!"
 
-            await app.bot.send_message(
-                chat_id=user_id, text=summary, parse_mode="Markdown"
-            )
+            await app.bot.send_message(chat_id=user_id, text=summary, parse_mode="Markdown")
             await asyncio.sleep(0.1)
         except Exception as e:
             logger.error(f"Не удалось отправить сводку пользователю {user_id}: {e}")
@@ -150,9 +142,7 @@ async def start_scheduler(app: Application):
         args=[app],
         id="motivational",
     )
-    logger.info(
-        "Задача для мотивационных сообщений запланирована на 10:05, 14:05, 18:05."
-    )
+    logger.info("Задача для мотивационных сообщений запланирована на 10:05, 14:05, 18:05.")
 
     # Запускаем сам планировщик
     scheduler.start()

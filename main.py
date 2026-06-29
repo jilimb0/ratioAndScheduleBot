@@ -1,43 +1,52 @@
+import asyncio
 import logging
-from telegram.ext import ApplicationBuilder
+from logging.handlers import RotatingFileHandler
 
 from telegram import Update
 from telegram.ext import (
     Application,
+    ApplicationBuilder,
+    CallbackQueryHandler,
     CommandHandler,
     MessageHandler,
-    CallbackQueryHandler,
-    ContextTypes,
     filters,
 )
 
-# Предполагается, что эти файлы существуют и настроены корректно
+from config import BOT_TOKEN, PORT, USE_WEBHOOK, WEBHOOK_URL
+from database import init_db
 from handlers import (
-    start_handler,
-    status_handler,
+    button_handler,
+    message_handler,
     report_handler,
     schedule_handler,
-    message_handler,
-    button_handler,
+    start_handler,
+    status_handler,
 )
-from scheduler import start_scheduler, shutdown_scheduler
-from config import BOT_TOKEN, PORT, USE_WEBHOOK, WEBHOOK_URL
-from database import (
-    init_db
-)
+from scheduler import shutdown_scheduler, start_scheduler
 
-# Настройка логирования
+# Structured logging with rotation
+handler = RotatingFileHandler("bot.log", maxBytes=5 * 1024 * 1024, backupCount=3)
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
-    handlers=[
-        logging.FileHandler('bot.log'),
-        logging.StreamHandler()
-    ]
+    handlers=[handler, logging.StreamHandler()],
 )
-# Уменьшаем "шум" от httpx и httpcore, которые использует библиотека
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
+
+
+async def health_server():
+    """Simple health endpoint on port 8080."""
+
+    async def handle_client(_reader, writer):
+        writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nok")
+        await writer.drain()
+        writer.close()
+
+    server = await asyncio.start_server(handle_client, "0.0.0.0", 8080, reuse_address=True)
+    logger.info("Health endpoint listening on port 8080")
+    async with server:
+        await server.serve_forever()
 
 
 async def post_init(application: Application):
@@ -62,20 +71,19 @@ async def post_shutdown(application: Application):
 def main() -> None:
     """Основная функция для запуска бота."""
     logger.info("Запуск бота...")
-    
+
     # Создание приложения с указанием хуков жизненного цикла
     application = ApplicationBuilder().token(BOT_TOKEN).build()
-
 
     # Регистрация обработчиков команд
     application.add_handler(CommandHandler("start", start_handler))
     application.add_handler(CommandHandler("status", status_handler))
     application.add_handler(CommandHandler("report", report_handler))
     application.add_handler(CommandHandler("schedule", schedule_handler))
-    
+
     # Обработчик кнопок
     application.add_handler(CallbackQueryHandler(button_handler))
-    
+
     # Обработчик текстовых сообщений
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
 
