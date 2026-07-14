@@ -43,8 +43,8 @@ async def health_server():
         await writer.drain()
         writer.close()
 
-    server = await asyncio.start_server(handle_client, "0.0.0.0", 8080, reuse_address=True)
-    logger.info("Health endpoint listening on port 8080")
+    server = await asyncio.start_server(handle_client, "0.0.0.0", PORT, reuse_address=True)
+    logger.info(f"Health endpoint listening on port {PORT}")
     async with server:
         await server.serve_forever()
 
@@ -97,7 +97,9 @@ def main() -> None:
             webhook_url=f"https://ratioandschedulebot.onrender.com/{BOT_TOKEN}",
         )
     else:
-        logger.info("Запуск с polling")
+        logger.info("Запуск с polling + health endpoint")
+        # Render требует HTTP-ответ на health check, даже в polling режиме
+        asyncio.ensure_future(health_server())
         # allowed_updates говорит Telegram API, какие типы обновлений нам нужны
         application.run_polling(allowed_updates=Update.ALL_TYPES)
 
