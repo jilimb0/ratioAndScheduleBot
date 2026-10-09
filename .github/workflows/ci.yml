@@ -32,4 +32,6 @@ jobs:
         run: python -m pytest tests/ -v
 
       - name: Build Docker image
-        run: docker build -t ratio-schedule-bot .
+        run: |
+          docker build --build-arg BASE_IMAGE=public.ecr.aws/docker/library/python:3.11-slim -t ratio-schedule-bot . || \
+          docker build -t ratio-schedule-bot .

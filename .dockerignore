@@ -1,0 +1,15 @@
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.git/
+.github/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.cursor/
+.DS_Store
+.env
+*.db
+*.log
