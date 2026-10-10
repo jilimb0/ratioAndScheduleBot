@@ -2,7 +2,8 @@
 
 Mirrors the cryptographic specification from @tgwrapper/core/tma:
 1. Extracts `hash` from URL-encoded query string.
-2. Constructs `data_check_string` by sorting remaining key=value pairs alphabetically by key, joined by '\\n'.
+2. Constructs `data_check_string` by sorting remaining key=value pairs
+   alphabetically by key, joined by '\\n'.
 3. Computes secret key via HMAC-SHA256("WebAppData", bot_token).
 4. Computes signature via HMAC-SHA256(secret_key, data_check_string).
 5. Compares signature with hex hash in constant time.
@@ -12,7 +13,7 @@ import hashlib
 import hmac
 import json
 import time
-from urllib.parse import parse_qsl, unquote
+from urllib.parse import parse_qsl
 
 
 def compute_init_data_hash(data_check_string: str, bot_token: str) -> str:
@@ -34,7 +35,7 @@ def parse_init_data(init_data: str) -> dict:
     """Parses raw initData query string into a dictionary, unpacking JSON 'user' if present."""
     parsed = {}
     for key, value in parse_qsl(init_data, keep_blank_values=True):
-        if key == "user" or key == "receiver" or key == "chat":
+        if key in ("user", "receiver", "chat"):
             try:
                 parsed[key] = json.loads(value)
             except Exception:
@@ -44,9 +45,7 @@ def parse_init_data(init_data: str) -> dict:
     return parsed
 
 
-def validate_init_data(
-    init_data: str, bot_token: str, max_age_seconds: int = 86400
-) -> bool:
+def validate_init_data(init_data: str, bot_token: str, max_age_seconds: int = 86400) -> bool:
     """Validates Telegram Mini App initData using HMAC-SHA256."""
     valid, _, _ = parse_and_validate_init_data(
         init_data, bot_token, max_age_seconds=max_age_seconds

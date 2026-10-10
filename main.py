@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import os
 from logging.handlers import RotatingFileHandler
@@ -36,6 +37,7 @@ from handlers import (
     webapp_data_handler,
 )
 from scheduler import shutdown_scheduler, start_scheduler
+from tma_validator import parse_and_validate_init_data
 
 # Structured logging with rotation
 handler = RotatingFileHandler("bot.log", maxBytes=5 * 1024 * 1024, backupCount=3)
@@ -54,17 +56,14 @@ if os.path.exists(WEBAPP_FILE):
         WEBAPP_CONTENT = f.read()
 
 
-from tma_validator import parse_and_validate_init_data, validate_init_data
-
 async def health_server():
-    """Health check endpoint on PORT, serves Telegram WebApp at /webapp, and protects TMA API endpoints."""
+    """Health check endpoint on PORT, serves WebApp, and validates TMA initData."""
 
     async def handle_client(reader, writer):
         try:
             line = await reader.readline()
             req_str = line.decode("utf-8", errors="ignore")
             parts = req_str.split(" ")
-            method = parts[0] if len(parts) > 0 else "GET"
             full_path = parts[1] if len(parts) > 1 else "/"
             path = full_path.split("?")[0]
             query_str = full_path.split("?")[1] if "?" in full_path else ""
@@ -94,25 +93,32 @@ async def health_server():
                 init_data = headers.get("x-telegram-init-data") or query_str
                 valid, data, err = parse_and_validate_init_data(init_data, BOT_TOKEN)
                 if not valid:
-                    err_body = json.dumps({"ok": False, "error": err or "Invalid initData"}).encode("utf-8")
+                    err_msg = err or "Invalid initData"
+                    err_body = json.dumps({"ok": False, "error": err_msg}).encode("utf-8")
                     resp = (
                         b"HTTP/1.1 401 Unauthorized\r\n"
                         b"Content-Type: application/json; charset=utf-8\r\n"
                         b"Access-Control-Allow-Origin: *\r\n"
-                        b"Content-Length: " + str(len(err_body)).encode() + b"\r\n\r\n"
-                        + err_body
+                        b"Content-Length: " + str(len(err_body)).encode() + b"\r\n\r\n" + err_body
                     )
                 else:
-                    success_body = json.dumps({"ok": True, "user": data.get("user")}).encode("utf-8")
+                    user_info = data.get("user") if data else None
+                    success_body = json.dumps({"ok": True, "user": user_info}).encode("utf-8")
                     resp = (
                         b"HTTP/1.1 200 OK\r\n"
                         b"Content-Type: application/json; charset=utf-8\r\n"
                         b"Access-Control-Allow-Origin: *\r\n"
-                        b"Content-Length: " + str(len(success_body)).encode() + b"\r\n\r\n"
+                        b"Content-Length: "
+                        + str(len(success_body)).encode()
+                        + b"\r\n\r\n"
                         + success_body
                     )
             else:
-                resp = b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nAccess-Control-Allow-Origin: *\r\n\r\nok"
+                resp = (
+                    b"HTTP/1.1 200 OK\r\n"
+                    b"Content-Type: text/plain\r\n"
+                    b"Access-Control-Allow-Origin: *\r\n\r\nok"
+                )
 
             writer.write(resp)
             await writer.drain()
@@ -125,7 +131,6 @@ async def health_server():
     logger.info(f"Health and WebApp server listening on port {PORT}")
     async with server:
         await server.serve_forever()
-
 
 
 async def post_init(application: Application):
