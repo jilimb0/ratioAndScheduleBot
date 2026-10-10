@@ -54,27 +54,65 @@ if os.path.exists(WEBAPP_FILE):
         WEBAPP_CONTENT = f.read()
 
 
+from tma_validator import parse_and_validate_init_data, validate_init_data
+
 async def health_server():
-    """Health check endpoint on PORT, and serves Telegram WebApp at /webapp."""
+    """Health check endpoint on PORT, serves Telegram WebApp at /webapp, and protects TMA API endpoints."""
 
     async def handle_client(reader, writer):
         try:
             line = await reader.readline()
             req_str = line.decode("utf-8", errors="ignore")
             parts = req_str.split(" ")
-            path = parts[1] if len(parts) > 1 else "/"
+            method = parts[0] if len(parts) > 0 else "GET"
+            full_path = parts[1] if len(parts) > 1 else "/"
+            path = full_path.split("?")[0]
+            query_str = full_path.split("?")[1] if "?" in full_path else ""
+
+            # Read headers
+            headers = {}
+            while True:
+                h_line = await reader.readline()
+                if not h_line or h_line == b"\r\n" or h_line == b"\n":
+                    break
+                h_str = h_line.decode("utf-8", errors="ignore").strip()
+                if ":" in h_str:
+                    hk, hv = h_str.split(":", 1)
+                    headers[hk.strip().lower()] = hv.strip()
 
             if path in ("/webapp", "/webapp/", "/webapp/index.html") and WEBAPP_CONTENT:
                 resp = (
                     b"HTTP/1.1 200 OK\r\n"
                     b"Content-Type: text/html; charset=utf-8\r\n"
+                    b"Access-Control-Allow-Origin: *\r\n"
                     b"Content-Length: "
                     + str(len(WEBAPP_CONTENT)).encode()
                     + b"\r\n\r\n"
                     + WEBAPP_CONTENT
                 )
+            elif path == "/api/validate":
+                init_data = headers.get("x-telegram-init-data") or query_str
+                valid, data, err = parse_and_validate_init_data(init_data, BOT_TOKEN)
+                if not valid:
+                    err_body = json.dumps({"ok": False, "error": err or "Invalid initData"}).encode("utf-8")
+                    resp = (
+                        b"HTTP/1.1 401 Unauthorized\r\n"
+                        b"Content-Type: application/json; charset=utf-8\r\n"
+                        b"Access-Control-Allow-Origin: *\r\n"
+                        b"Content-Length: " + str(len(err_body)).encode() + b"\r\n\r\n"
+                        + err_body
+                    )
+                else:
+                    success_body = json.dumps({"ok": True, "user": data.get("user")}).encode("utf-8")
+                    resp = (
+                        b"HTTP/1.1 200 OK\r\n"
+                        b"Content-Type: application/json; charset=utf-8\r\n"
+                        b"Access-Control-Allow-Origin: *\r\n"
+                        b"Content-Length: " + str(len(success_body)).encode() + b"\r\n\r\n"
+                        + success_body
+                    )
             else:
-                resp = b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nok"
+                resp = b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nAccess-Control-Allow-Origin: *\r\n\r\nok"
 
             writer.write(resp)
             await writer.drain()
@@ -87,6 +125,7 @@ async def health_server():
     logger.info(f"Health and WebApp server listening on port {PORT}")
     async with server:
         await server.serve_forever()
+
 
 
 async def post_init(application: Application):
