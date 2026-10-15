@@ -2,6 +2,9 @@ allowBuilds:
   '@biomejs/biome': true
   esbuild: true
 
+minimumReleaseAgeExclude:
+  - '@tgwrapper/core@0.20.2'
+
 onlyBuiltDependencies:
   - "@biomejs/biome"
   - esbuild

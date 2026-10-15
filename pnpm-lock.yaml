@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@tgwrapper/core':
-        specifier: ^0.20.1
-        version: 0.20.1
+        specifier: ^0.20.2
+        version: 0.20.2
       '@ui-construction-library/core':
         specifier: ^0.9.0
         version: 0.9.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -511,8 +511,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@tgwrapper/core@0.20.1':
-    resolution: {integrity: sha512-Obti1Jt09WdUmnCSu5FEBrEThRiL0gMeif412a888GrxlQ6E/K0PR9sd7BDVoTcpqkflC+rU64FmRS9ySmA3ew==}
+  '@tgwrapper/core@0.20.2':
+    resolution: {integrity: sha512-BZKon2+kWoo002cqNQlFPeC5Wp4lKnQuoZyt/qS+dEsLku4/+Pz4xW6lKlhmrcpRRAwEWjeo/VQJg/pSZ0wVCg==}
     engines: {node: '>=24.0'}
 
   '@types/babel__core@7.20.5':
@@ -1258,7 +1258,7 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.64.6':
     optional: true
 
-  '@tgwrapper/core@0.20.1': {}
+  '@tgwrapper/core@0.20.2': {}
 
   '@types/babel__core@7.20.5':
     dependencies:

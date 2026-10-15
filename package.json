@@ -14,7 +14,7 @@
     "check:ci": "biome check --diagnostic-level=error src tests vite.config.ts"
   },
   "dependencies": {
-    "@tgwrapper/core": "^0.20.1",
+    "@tgwrapper/core": "^0.20.2",
     "@ui-construction-library/core": "^0.9.0",
     "@ui-construction-library/icons": "^0.6.0",
     "react": "^19.2.7",
