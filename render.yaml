@@ -4,7 +4,7 @@ services:
   plan: free
   runtime: node
   buildCommand: corepack enable && corepack prepare pnpm@10 --activate && pnpm install --frozen-lockfile && pnpm build
-  startCommand: node dist/worker.js
+  startCommand: node dist-server/server.mjs
   healthCheckPath: /health
   autoDeploy: true
   envVars:

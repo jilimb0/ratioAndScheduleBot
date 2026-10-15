@@ -19,7 +19,7 @@ Russian-language Telegram bot for maintaining daily routines. Sends scheduled re
 
 ## Structure
 - `src/bot.ts` — bot wiring
-- `src/worker.ts` — production entry (`node dist/worker.js`)
+- `src/server.ts` — HTTP-сервер (webhook + polling + статика WebApp, `node dist-server/server.mjs`)
 - `src/serverless-handler.ts` — webhook / serverless handler
 - `src/database.ts` — SQLite access
 - `src/engine.ts` — scheduling / ratio engine

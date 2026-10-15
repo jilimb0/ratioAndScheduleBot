@@ -62,7 +62,7 @@ pnpm test
 
 # Production-сборка и запуск
 pnpm build
-node dist/worker.js
+node dist-server/server.mjs
 ```
 
 ## 🌐 Развертывание на Render.com
@@ -81,7 +81,7 @@ node dist/worker.js
      - **Name**: `telegram-schedule-bot`
      - **Environment**: `Node` (или Docker с `Dockerfile`)
      - **Build Command**: `corepack enable && pnpm install --frozen-lockfile && pnpm build`
-     - **Start Command**: `node dist/worker.js`
+     - **Start Command**: `node dist-server/server.mjs`
 
 3. **Настройка переменных окружения**:
    - В разделе "Environment" добавьте:
@@ -146,7 +146,7 @@ export const DEFAULT_SCHEDULE: ScheduleSlot[] = [
 ratioAndScheduleBot/
 ├── src/
 │   ├── bot.ts                # Подключение бота
-│   ├── worker.ts             # Production-вход (node dist/worker.js)
+│   ├── server.ts             # HTTP-сервер: webhook/polling + статика (node dist-server/server.mjs)
 │   ├── serverless-handler.ts # Webhook / serverless handler
 │   ├── database.ts           # Работа с БД (SQLite)
 │   ├── engine.ts             # Планировщик и ratio-движок

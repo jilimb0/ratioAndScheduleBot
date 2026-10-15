@@ -16,4 +16,4 @@ WORKDIR /app
 COPY --from=builder /app /app
 
 ENV NODE_ENV=production
-CMD ["node", "dist/worker.js"]
+CMD ["node", "dist-server/server.mjs"]
