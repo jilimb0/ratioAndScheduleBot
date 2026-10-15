@@ -3,8 +3,9 @@ services:
   name: telegram-schedule-bot
   plan: free
   runtime: node
-  buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
+  buildCommand: corepack enable && corepack prepare pnpm@10 --activate && pnpm install --frozen-lockfile && pnpm build
   startCommand: node dist/worker.js
+  healthCheckPath: /health
   autoDeploy: true
   envVars:
   - key: BOT_TOKEN
