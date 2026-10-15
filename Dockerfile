@@ -1,11 +1,19 @@
-ARG BASE_IMAGE=python:3.11-slim
-FROM ${BASE_IMAGE}
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+COPY package.json pnpm-lock.yaml* ./
+RUN pnpm install
 
 COPY . .
+RUN pnpm build
 
-CMD ["python", "main.py"]
+FROM node:22-alpine AS runner
+WORKDIR /app
+
+COPY --from=builder /app /app
+
+ENV NODE_ENV=production
+CMD ["node", "dist/worker.js"]
