@@ -18,12 +18,7 @@
 
 ## 2. Пошаговый план внедрения (Action Plan)
 
-- [ ] **Шаг 1: Добавить метатег `noindex` в `webapp/index.html`**
-  ```html
-  <meta name="robots" content="noindex, nofollow" />
-  ```
-- [ ] **Шаг 2: Создать `webapp/robots.txt`**
-  ```txt
-  User-agent: *
-  Disallow: /
-  ```
+- [x] **Шаг 1: Добавить метатег `noindex` в `webapp/index.html`**
+  - Добавлен метатег `<meta name="robots" content="noindex, nofollow">`.
+- [x] **Шаг 2: Создать `webapp/robots.txt`**
+  - Создан файл с директивой `Disallow: /`.
