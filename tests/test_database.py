@@ -253,5 +253,10 @@ def test_pro_activation_and_payments():
     activate_user_pro(1, days=30)
     assert is_user_pro(1) is True
 
-    record_payment(1, "tg_123", "prov_123", 150)
+    res1 = record_payment(1, "tg_123", "prov_123", 150)
+    assert res1 is True
     assert is_user_pro(1) is True
+
+    # Idempotency check: duplicate payment charge_id returns False
+    res2 = record_payment(1, "tg_123", "prov_123", 150)
+    assert res2 is False

@@ -127,6 +127,12 @@ def init_db(cursor: sqlite3.Cursor) -> None:
         )
     """)
 
+    cursor.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_tg_charge 
+        ON payments(telegram_payment_charge_id)
+        WHERE telegram_payment_charge_id IS NOT NULL AND telegram_payment_charge_id != ''
+    """)
+
     # Таблица отложенных напоминаний (Snooze)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS snoozed_tasks (
@@ -277,19 +283,25 @@ def record_payment(
     provider_charge_id: str,
     amount_stars: int,
 ) -> bool:
-    """Сохраняет запись об успешной оплате подписки."""
-    cursor.execute(
-        """
-        INSERT INTO payments (
-            user_id, telegram_payment_charge_id, provider_payment_charge_id,
-            amount_stars, created_at
+    """Сохраняет запись об успешной оплате подписки с защитой от дублирования."""
+    try:
+        cursor.execute(
+            """
+            INSERT INTO payments (
+                user_id, telegram_payment_charge_id, provider_payment_charge_id,
+                amount_stars, created_at
+            )
+            VALUES (?, ?, ?, ?, ?)
+        """,
+            (user_id, telegram_charge_id, provider_charge_id, amount_stars, datetime.now()),
         )
-        VALUES (?, ?, ?, ?, ?)
-    """,
-        (user_id, telegram_charge_id, provider_charge_id, amount_stars, datetime.now()),
-    )
-    activate_user_pro(user_id, days=30)
-    return True
+        activate_user_pro(user_id, days=30)
+        return True
+    except sqlite3.IntegrityError:
+        logger.warning(
+            f"Duplicate payment received for charge_id {telegram_charge_id}, ignoring"
+        )
+        return False
 
 
 # --- Управление расписанием и привычками пользователя ---

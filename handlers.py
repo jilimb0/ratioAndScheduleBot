@@ -522,13 +522,17 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
     user = update.effective_user
     sp = update.message.successful_payment
 
-    record_payment(
+    recorded = record_payment(
         user_id=user.id,
         telegram_charge_id=sp.telegram_payment_charge_id,
         provider_charge_id=sp.provider_payment_charge_id or "",
         amount_stars=sp.total_amount,
     )
-    activate_user_pro(user.id, days=30)
+    if not recorded:
+        logger.warning(
+            f"Платёж {sp.telegram_payment_charge_id} уже был обработан ранее для user {user.id}"
+        )
+        return
 
     logger.info(f"Успешная оплата Stars пользователем {user.id}: {sp.total_amount} XTR")
     await update.message.reply_text(

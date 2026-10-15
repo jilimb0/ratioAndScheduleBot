@@ -4,6 +4,8 @@ import logging
 import os
 from logging.handlers import RotatingFileHandler
 
+from aiohttp import web
+
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -57,80 +59,72 @@ if os.path.exists(WEBAPP_FILE):
 
 
 async def health_server():
-    """Health check endpoint on PORT, serves WebApp, and validates TMA initData."""
+    """Health check endpoint on PORT, serves WebApp, and validates TMA initData using aiohttp."""
+    routes = web.RouteTableDef()
 
-    async def handle_client(reader, writer):
-        try:
-            line = await reader.readline()
-            req_str = line.decode("utf-8", errors="ignore")
-            parts = req_str.split(" ")
-            full_path = parts[1] if len(parts) > 1 else "/"
-            path = full_path.split("?")[0]
-            query_str = full_path.split("?")[1] if "?" in full_path else ""
+    @routes.get("/")
+    @routes.get("/health")
+    async def handle_health(_request: web.Request):
+        return web.Response(
+            text="ok",
+            content_type="text/plain",
+            headers={"Access-Control-Allow-Origin": "*", "X-Content-Type-Options": "nosniff"},
+        )
 
-            # Read headers
-            headers = {}
-            while True:
-                h_line = await reader.readline()
-                if not h_line or h_line == b"\r\n" or h_line == b"\n":
-                    break
-                h_str = h_line.decode("utf-8", errors="ignore").strip()
-                if ":" in h_str:
-                    hk, hv = h_str.split(":", 1)
-                    headers[hk.strip().lower()] = hv.strip()
+    @routes.get("/webapp")
+    @routes.get("/webapp/")
+    @routes.get("/webapp/index.html")
+    async def handle_webapp(_request: web.Request):
+        if WEBAPP_CONTENT:
+            return web.Response(
+                body=WEBAPP_CONTENT,
+                content_type="text/html",
+                charset="utf-8",
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "X-Content-Type-Options": "nosniff",
+                    "X-Frame-Options": "SAMEORIGIN",
+                },
+            )
+        return web.Response(status=404, text="WebApp not found")
 
-            if path in ("/webapp", "/webapp/", "/webapp/index.html") and WEBAPP_CONTENT:
-                resp = (
-                    b"HTTP/1.1 200 OK\r\n"
-                    b"Content-Type: text/html; charset=utf-8\r\n"
-                    b"Access-Control-Allow-Origin: *\r\n"
-                    b"Content-Length: "
-                    + str(len(WEBAPP_CONTENT)).encode()
-                    + b"\r\n\r\n"
-                    + WEBAPP_CONTENT
-                )
-            elif path == "/api/validate":
-                init_data = headers.get("x-telegram-init-data") or query_str
-                valid, data, err = parse_and_validate_init_data(init_data, BOT_TOKEN)
-                if not valid:
-                    err_msg = err or "Invalid initData"
-                    err_body = json.dumps({"ok": False, "error": err_msg}).encode("utf-8")
-                    resp = (
-                        b"HTTP/1.1 401 Unauthorized\r\n"
-                        b"Content-Type: application/json; charset=utf-8\r\n"
-                        b"Access-Control-Allow-Origin: *\r\n"
-                        b"Content-Length: " + str(len(err_body)).encode() + b"\r\n\r\n" + err_body
-                    )
-                else:
-                    user_info = data.get("user") if data else None
-                    success_body = json.dumps({"ok": True, "user": user_info}).encode("utf-8")
-                    resp = (
-                        b"HTTP/1.1 200 OK\r\n"
-                        b"Content-Type: application/json; charset=utf-8\r\n"
-                        b"Access-Control-Allow-Origin: *\r\n"
-                        b"Content-Length: "
-                        + str(len(success_body)).encode()
-                        + b"\r\n\r\n"
-                        + success_body
-                    )
-            else:
-                resp = (
-                    b"HTTP/1.1 200 OK\r\n"
-                    b"Content-Type: text/plain\r\n"
-                    b"Access-Control-Allow-Origin: *\r\n\r\nok"
-                )
+    @routes.route("*", "/api/validate")
+    async def handle_validate(request: web.Request):
+        init_data = request.headers.get("x-telegram-init-data") or request.query_string
+        if not init_data and request.can_read_body:
+            try:
+                body_json = await request.json()
+                if isinstance(body_json, dict):
+                    init_data = body_json.get("initData") or body_json.get("init_data")
+            except Exception:
+                pass
 
-            writer.write(resp)
-            await writer.drain()
-        except Exception as e:
-            logger.debug(f"Error serving client in health_server: {e}")
-        finally:
-            writer.close()
+        valid, data, err = parse_and_validate_init_data(init_data, BOT_TOKEN)
+        if not valid:
+            err_msg = err or "Invalid initData"
+            return web.json_response(
+                {"ok": False, "error": err_msg},
+                status=401,
+                headers={"Access-Control-Allow-Origin": "*", "X-Content-Type-Options": "nosniff"},
+            )
 
-    server = await asyncio.start_server(handle_client, "0.0.0.0", PORT, reuse_address=True)
-    logger.info(f"Health and WebApp server listening on port {PORT}")
-    async with server:
-        await server.serve_forever()
+        user_info = data.get("user") if data else None
+        return web.json_response(
+            {"ok": True, "user": user_info},
+            headers={"Access-Control-Allow-Origin": "*", "X-Content-Type-Options": "nosniff"},
+        )
+
+    app = web.Application(client_max_size=1024 * 1024)
+    app.add_routes(routes)
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", PORT)
+    await site.start()
+    logger.info(f"Health and WebApp server listening on port {PORT} via aiohttp")
+
+    while True:
+        await asyncio.sleep(3600)
 
 
 async def post_init(application: Application):

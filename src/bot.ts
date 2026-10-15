@@ -11,6 +11,7 @@ import type { CompletedTask } from './types';
 export interface RatioBotOptions {
   token: string;
   botUsername?: string;
+  client?: BotClient;
 }
 
 export function createRatioBot(options: RatioBotOptions): {
@@ -23,7 +24,11 @@ export function createRatioBot(options: RatioBotOptions): {
   handleCallbackQuery: (callbackData: string) => Promise<string>;
   validateTma: (initData: string) => boolean;
 } {
-  const client = createBotClient({ token: options.token });
+  const client =
+    options.client ??
+    createBotClient({
+      token: options.token,
+    });
 
   const getSettingsKeyboard = (): InlineKeyboardMarkup => ({
     inline_keyboard: COMMON_TIMEZONES.slice(0, 6).map((tz) => [
