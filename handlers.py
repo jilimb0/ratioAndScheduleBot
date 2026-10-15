@@ -24,7 +24,6 @@ from config import (
     WEBAPP_URL,
 )
 from database import (
-    activate_user_pro,
     add_user_task,
     delete_user_task,
     get_completion_rate,

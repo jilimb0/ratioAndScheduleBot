@@ -128,7 +128,7 @@ def init_db(cursor: sqlite3.Cursor) -> None:
     """)
 
     cursor.execute("""
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_tg_charge 
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_tg_charge
         ON payments(telegram_payment_charge_id)
         WHERE telegram_payment_charge_id IS NOT NULL AND telegram_payment_charge_id != ''
     """)

@@ -1,11 +1,9 @@
 import asyncio
-import json
 import logging
 import os
 from logging.handlers import RotatingFileHandler
 
 from aiohttp import web
-
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -123,8 +121,7 @@ async def health_server():
     await site.start()
     logger.info(f"Health and WebApp server listening on port {PORT} via aiohttp")
 
-    while True:
-        await asyncio.sleep(3600)
+    await asyncio.Event().wait()
 
 
 async def post_init(application: Application):
