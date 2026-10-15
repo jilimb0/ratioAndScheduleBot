@@ -1,0 +1,32 @@
+{
+  "name": "ratio-and-schedule-bot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc && vite build",
+    "dev": "vite",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "biome lint --write src tests vite.config.ts",
+    "format": "biome format --write src tests vite.config.ts",
+    "check": "biome check --write src tests vite.config.ts",
+    "check:ci": "biome check --diagnostic-level=error src tests vite.config.ts"
+  },
+  "dependencies": {
+    "@tgwrapper/core": "^0.20.1",
+    "@ui-construction-library/core": "^0.9.0",
+    "@ui-construction-library/icons": "^0.6.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.3",
+    "@types/react": "18.2.79",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.2.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.6",
+    "vitest": "^3.2.7"
+  }
+}
