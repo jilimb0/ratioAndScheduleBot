@@ -34,14 +34,14 @@
 
 ## Deployment
 
-### Local (venv)
+### Local (pnpm)
 
 ```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+corepack enable
+pnpm install
 cp .env.example .env  # edit BOT_TOKEN
-python main.py
+pnpm dev      # WebApp dev-сервер
+pnpm build && node dist/worker.js  # production-сборка и запуск
 ```
 
 ### Docker
@@ -54,8 +54,9 @@ docker-compose up -d
 
 1. Connect GitHub repo to Render
 2. Set `BOT_TOKEN`, `TIMEZONE`, and optionally `WEBAPP_URL` env vars
-3. Set `Start Command`: `python main.py`
-4. Attach a **Persistent Disk** mounted to `/data` and set `DATABASE_PATH=/data/bot_data.db` to prevent database wipes across deploys.
+3. Set `Build Command`: `corepack enable && pnpm install --frozen-lockfile && pnpm build`
+4. Set `Start Command`: `node dist/worker.js`
+5. Attach a **Persistent Disk** mounted to `/data` and set `DATABASE_PATH=/data/bot_data.db` to prevent database wipes across deploys.
 
 ## Внешние настройки (Не зависящие от кода / BotFather)
 

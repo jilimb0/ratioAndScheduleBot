@@ -2,9 +2,9 @@ services:
 - type: web
   name: telegram-schedule-bot
   plan: free
-  runtime: python
-  buildCommand: pip install -r requirements.txt
-  startCommand: python main.py
+  runtime: node
+  buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
+  startCommand: node dist/worker.js
   autoDeploy: true
   envVars:
   - key: BOT_TOKEN
@@ -15,3 +15,5 @@ services:
     value: 8000
   - key: TZ
     value: Asia/Tbilisi
+  - key: DATABASE_PATH
+    value: /data/bot_data.db

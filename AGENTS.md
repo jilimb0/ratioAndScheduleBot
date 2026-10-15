@@ -3,27 +3,32 @@
 Russian-language Telegram bot for maintaining daily routines. Sends scheduled reminders, tracks completion, weekly reports with motivational messages.
 
 ## Tech Stack
-- **Language:** Python 3.11
-- **Framework:** python-telegram-bot v20.8
-- **Scheduler:** APScheduler 3.10
-- **Database:** SQLite
-- **Deploy:** Render (free tier)
+- **Language:** TypeScript (Node.js, strict mode)
+- **Bot:** @tgwrapper/core
+- **UI:** React 19 + Vite (Telegram WebApp)
+- **Database:** SQLite (via `src/database.ts`)
+- **Deploy:** Render (free tier, Docker / Node)
 
 ## Commands
-- `python main.py` — run the bot
-- `pip install -r requirements.txt` — install deps
-- `source venv/bin/activate` — activate virtual env
+- `pnpm install` — install deps
+- `pnpm dev` — run WebApp dev server
+- `pnpm build` — type-check + build (`tsc && vite build`)
+- `pnpm test` — run Vitest suite
+- `pnpm type-check` — `tsc --noEmit`
+- `pnpm check` / `pnpm check:ci` — Biome lint + format
 
 ## Structure
-- `main.py` — entry point
-- `handlers.py` — command/button handlers
-- `database.py` — SQLite CRUD (decorator-based connection mgmt)
-- `scheduler.py` — APScheduler jobs
-- `config.py` — constants, messages, schedule (Russian)
+- `src/bot.ts` — bot wiring
+- `src/worker.ts` — production entry (`node dist/worker.js`)
+- `src/serverless-handler.ts` — webhook / serverless handler
+- `src/database.ts` — SQLite access
+- `src/engine.ts` — scheduling / ratio engine
+- `src/config.ts` — constants, messages, schedule (Russian)
+- `src/App.tsx`, `src/main.tsx` — Telegram WebApp
+- `tests/` — Vitest specs (`*.spec.ts`)
 
 ## Conventions
 - All user-facing strings in Russian
-- Config-driven SCHEDULE dict
-- `db_connection` decorator for SQLite lifecycle
-- Supports webhook (Render) and polling (local) modes
-- Procfile + render.yaml for Render deployment
+- Config-driven schedule in `src/config.ts`
+- pnpm over npm/yarn, Biome for lint/format
+- `type` over `interface` for unions, no `any`, `const` by default

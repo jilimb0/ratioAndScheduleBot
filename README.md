@@ -40,14 +40,9 @@ Telegram-бот для персонального тайм-менеджмент�
 git clone <your-repo-url>
 cd telegram_bot
 
-# Создайте виртуальное окружение
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# или
-venv\Scripts\activate     # Windows
-
-# Установите зависимости
-pip install -r requirements.txt
+# Включите corepack (для pnpm) и установите зависимости
+corepack enable
+pnpm install
 
 # Настройте переменные окружения
 cp .env.example .env
@@ -57,8 +52,17 @@ cp .env.example .env
 ### 3. Запуск локально
 
 ```bash
-# Запустите бота
-python main.py
+# WebApp dev-сервер
+pnpm dev
+
+# Проверка типов, линтер и тесты
+pnpm type-check
+pnpm check
+pnpm test
+
+# Production-сборка и запуск
+pnpm build
+node dist/worker.js
 ```
 
 ## 🌐 Развертывание на Render.com
@@ -75,9 +79,9 @@ python main.py
    - Подключите ваш GitHub репозиторий
    - Настройте параметры:
      - **Name**: `telegram-schedule-bot`
-     - **Environment**: `Python 3`
-     - **Build Command**: `pip install -r requirements.txt`
-     - **Start Command**: `python main.py`
+     - **Environment**: `Node` (или Docker с `Dockerfile`)
+     - **Build Command**: `corepack enable && pnpm install --frozen-lockfile && pnpm build`
+     - **Start Command**: `node dist/worker.js`
 
 3. **Настройка переменных окружения**:
    - В разделе "Environment" добавьте:
@@ -108,7 +112,7 @@ python main.py
      - `TIMEZONE` = ваш часовой пояс
 
 4. **Деплой**:
-   - Railway автоматически определит Python и запустит бота
+   - Railway автоматически определит Node/Docker и запустит бота
    - Проверьте логи в разделе "Deployments"
 
 ## 📱 Команды бота
@@ -120,34 +124,43 @@ python main.py
 
 ## 🔧 Настройка расписания
 
-Чтобы изменить расписание, отредактируйте файл `config.py`:
+Чтобы изменить расписание, отредактируйте файл `src/config.ts`:
 
-```python
-SCHEDULE = {
-    "morning_workout": {
-        "time": time(8, 15),  # Время в формате (час, минута)
-        "message": "🏃‍♂️ Время утренней тренировки!",
-        "button_text": "Тренировка выполнена ✅",
-        "category": "health",
-        "duration_minutes": 45,
-    },
-    # Добавьте новые задачи или измените существующие
-}
+```ts
+export const DEFAULT_SCHEDULE: ScheduleSlot[] = [
+  {
+    id: 'morning_workout',
+    time: '08:15', // Время в формате (час:минута)
+    message: '🏃‍♂️ Время утренней тренировки!',
+    buttonText: 'Тренировка выполнена ✅',
+    category: 'health',
+    durationMinutes: 45,
+  },
+  // Добавьте новые задачи или измените существующие
+];
 ```
 
 ## 📊 Структура проекта
 
 ```
-telegram_bot/
-├── main.py                 # Точка входа
-├── handlers.py             # Обработчики сообщений
-├── scheduler.py            # Планировщик задач
-├── database.py             # Работа с БД
-├── config.py               # Конфигурация
-├── requirements.txt        # Зависимости
-├── .env                    # Переменные окружения
-├── README.md              # Документация
-└── bot_data.db            # SQLite база данных (создается автоматически)
+ratioAndScheduleBot/
+├── src/
+│   ├── bot.ts                # Подключение бота
+│   ├── worker.ts             # Production-вход (node dist/worker.js)
+│   ├── serverless-handler.ts # Webhook / serverless handler
+│   ├── database.ts           # Работа с БД (SQLite)
+│   ├── engine.ts             # Планировщик и ratio-движок
+│   ├── config.ts             # Конфигурация
+│   ├── App.tsx / main.tsx    # Telegram WebApp
+│   └── types.ts              # Общие типы
+├── tests/                    # Vitest-спеки (*.spec.ts)
+├── Dockerfile                # Node 22 multi-stage (builder → runner)
+├── docker-compose.yml        # Локальный запуск в Docker
+├── render.yaml               # Деплой на Render (Node)
+├── package.json              # Зависимости и скрипты pnpm
+├── .env.example              # Переменные окружения
+├── README.md                 # Документация
+└── bot_data.db               # SQLite база данных (создается автоматически)
 ```
 
 ## 🛠️ Дополнительные возможности
@@ -161,24 +174,24 @@ export TIMEZONE=Europe/Moscow
 
 ### Добавление новых задач
 
-1. Откройте `config.py`
-2. Добавьте новую задачу в `SCHEDULE`:
+1. Откройте `src/config.ts`
+2. Добавьте новую задачу в `DEFAULT_SCHEDULE`:
 
-```python
-"new_task": {
-    "time": time(15, 30),
-    "message": "📝 Время для новой задачи!",
-    "button_text": "Задача выполнена ✅"
+```ts
+{
+  id: 'new_task',
+  time: '15:30',
+  message: '📝 Время для новой задачи!',
+  buttonText: 'Задача выполнена ✅',
+  category: 'work',
+  durationMinutes: 30,
 }
 ```
 
 ### Настройка логирования
 
-Логи сохраняются в файл `bot.log`. Для изменения уровня логирования отредактируйте `main.py`:
-
-```python
-logging.basicConfig(level=logging.DEBUG)  # Более подробные логи
-```
+Логи выводятся в stdout. Уровень задается через переменную окружения `LOG_LEVEL`
+(`debug` для подробных логов).
 
 ## 🐛 Решение проблем
 

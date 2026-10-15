@@ -5,22 +5,24 @@
 ```bash
 git clone <repo>
 cd RatioAndScheduleBot
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-pre-commit install
+corepack enable
+pnpm install
+cp .env.example .env  # edit BOT_TOKEN
 ```
 
 ## Commands
 
-- `ruff check .` — lint
-- `ruff format .` — format
-- `python -m pytest` — run tests
-- `python main.py` — run bot
+- `pnpm check` — Biome lint + format (write)
+- `pnpm check:ci` — Biome check (CI)
+- `pnpm type-check` — `tsc --noEmit`
+- `pnpm test` — Vitest suite
+- `pnpm build` — `tsc && vite build`
+- `pnpm dev` — WebApp dev server
 
 ## Conventions
 
-- Python 3.11+
-- ruff for linting/formatting
+- TypeScript strict mode, Node 22+
+- Biome for linting/formatting
+- pnpm over npm/yarn
 - All user-facing strings in Russian
-- Tests use temporary SQLite databases
+- Tests live alongside source (`*.spec.ts`, Vitest)

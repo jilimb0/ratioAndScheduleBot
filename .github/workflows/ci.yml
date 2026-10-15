@@ -11,27 +11,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
-          python-version: "3.11"
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "pnpm"
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install ruff pytest
+        run: pnpm install --frozen-lockfile
 
-      - name: Lint with Ruff
-        run: ruff check .
+      - name: Type check
+        run: pnpm type-check
 
-      - name: Check formatting
-        run: ruff format --check .
+      - name: Lint with Biome
+        run: pnpm check:ci
 
-      - name: Test with pytest
-        run: python -m pytest tests/ -v
+      - name: Test with Vitest
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
 
       - name: Build Docker image
-        run: |
-          docker build --build-arg BASE_IMAGE=public.ecr.aws/docker/library/python:3.11-slim -t ratio-schedule-bot . || \
-          docker build -t ratio-schedule-bot .
+        run: docker build -t ratio-schedule-bot .
