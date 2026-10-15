@@ -80,7 +80,7 @@ node dist-server/server.mjs
    - Настройте параметры:
      - **Name**: `telegram-schedule-bot`
      - **Environment**: `Node` (или Docker с `Dockerfile`)
-     - **Build Command**: `corepack enable && pnpm install --frozen-lockfile && pnpm build`
+     - **Build Command**: `corepack prepare pnpm@10 --activate && pnpm install --frozen-lockfile && pnpm build`
      - **Start Command**: `node dist-server/server.mjs`
 
 3. **Настройка переменных окружения**:

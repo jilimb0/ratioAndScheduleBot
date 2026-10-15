@@ -54,7 +54,7 @@ docker-compose up -d
 
 1. Connect GitHub repo to Render
 2. Set `BOT_TOKEN`, `TIMEZONE`, and optionally `WEBAPP_URL` env vars
-3. Set `Build Command`: `corepack enable && pnpm install --frozen-lockfile && pnpm build`
+3. Set `Build Command`: `corepack prepare pnpm@10 --activate && pnpm install --frozen-lockfile && pnpm build`
 4. Set `Start Command`: `node dist-server/server.mjs`
 5. Attach a **Persistent Disk** mounted to `/data` and set `DATABASE_PATH=/data/bot_data.db` to prevent database wipes across deploys.
 
