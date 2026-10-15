@@ -298,9 +298,7 @@ def record_payment(
         activate_user_pro(user_id, days=30)
         return True
     except sqlite3.IntegrityError:
-        logger.warning(
-            f"Duplicate payment received for charge_id {telegram_charge_id}, ignoring"
-        )
+        logger.warning(f"Duplicate payment received for charge_id {telegram_charge_id}, ignoring")
         return False
 
 
