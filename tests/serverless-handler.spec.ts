@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { MockBotClient } from '@tgwrapper/core';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   handleScheduledBriefings,
   handleServerlessWebhook,
@@ -118,5 +118,66 @@ describe('Serverless Handler for ratioAndScheduleBot', () => {
   it('dispatches scheduled morning briefings to target users', async () => {
     const result = await handleScheduledBriefings(env, [12345, 67890]);
     expect(result.dispatched + result.failed).toBe(2);
+  });
+
+  it('handles pre_checkout_query update', async () => {
+    const req = new Request('https://worker.test/webhook', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-telegram-bot-api-secret-token': 'super-secret-token-123',
+      },
+      body: JSON.stringify({
+        update_id: 103,
+        pre_checkout_query: { id: 'pcq_123', from: { id: 1 }, currency: 'XTR', total_amount: 50 },
+      }),
+    });
+
+    const res = await handleServerlessWebhook(req, env);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.action).toBe('pre_checkout_query_handled');
+  });
+
+  it('handles inline_query update', async () => {
+    const req = new Request('https://worker.test/webhook', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-telegram-bot-api-secret-token': 'super-secret-token-123',
+      },
+      body: JSON.stringify({
+        update_id: 104,
+        inline_query: { id: 'iq_123', query: 'schedule' },
+      }),
+    });
+
+    const res = await handleServerlessWebhook(req, env);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.action).toBe('inline_query_handled');
+  });
+
+  it('handles successful_payment message update', async () => {
+    const req = new Request('https://worker.test/webhook', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-telegram-bot-api-secret-token': 'super-secret-token-123',
+      },
+      body: JSON.stringify({
+        update_id: 105,
+        message: {
+          message_id: 5,
+          chat: { id: 98765 },
+          successful_payment: { currency: 'XTR', total_amount: 50 },
+        },
+      }),
+    });
+
+    const res = await handleServerlessWebhook(req, env);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.action).toBe('payment_handled');
   });
 });

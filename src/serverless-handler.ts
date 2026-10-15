@@ -106,6 +106,65 @@ export async function handleServerlessWebhook(
     const update = (await request.json()) as Update;
     const bot = createRatioBot({ token: env.BOT_TOKEN, client: env.client });
 
+    const updateObj = update as Record<string, unknown>;
+
+    // Handle pre_checkout_query for Stars
+    if (updateObj.pre_checkout_query) {
+      const pcq = updateObj.pre_checkout_query as { id: string };
+      const clientAny = bot.client as unknown as {
+        callApiUnsafe?: (m: string, p: unknown) => Promise<unknown>;
+      };
+      if (typeof clientAny.callApiUnsafe === 'function') {
+        try {
+          await clientAny.callApiUnsafe('answerPreCheckoutQuery', {
+            pre_checkout_query_id: pcq.id,
+            ok: true,
+          });
+        } catch {
+          // ignore
+        }
+      }
+      return new Response(JSON.stringify({ ok: true, action: 'pre_checkout_query_handled' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Handle inline_query
+    if (updateObj.inline_query) {
+      const iq = updateObj.inline_query as { id: string; query?: string };
+      const clientAny = bot.client as unknown as {
+        callApiUnsafe?: (m: string, p: unknown) => Promise<unknown>;
+      };
+      if (typeof clientAny.callApiUnsafe === 'function') {
+        try {
+          const results = [
+            {
+              type: 'article',
+              id: 'ratio-analytics',
+              title: '⚖️ Ratio & Schedule: Баланс дня',
+              description: 'Узнать текущее соотношение работы и отдыха (Work/Rest)',
+              input_message_content: {
+                message_text: `⚖️ <b>Ratio & Schedule Status</b>\nТекущий баланс: <b>2.0:1 (Гармония)</b>\nЗапланировано слотов: ${DEFAULT_SCHEDULE.length}\nЗапустите Mini App для настройки расписания!`,
+                parse_mode: 'HTML',
+              },
+            },
+          ];
+          await clientAny.callApiUnsafe('answerInlineQuery', {
+            inline_query_id: iq.id,
+            results,
+            cache_time: 10,
+          });
+        } catch {
+          // ignore
+        }
+      }
+      return new Response(JSON.stringify({ ok: true, action: 'inline_query_handled' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     // Handle inline callback queries
     if (update.callback_query) {
       const cq = update.callback_query;
@@ -123,6 +182,19 @@ export async function handleServerlessWebhook(
       }
 
       return new Response(JSON.stringify({ ok: true, action: 'callback_query_handled' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Handle successful_payment
+    const msgObj = update.message as Record<string, unknown> | undefined;
+    if (msgObj?.successful_payment && update.message?.chat?.id) {
+      await bot.client.sendMessage(
+        update.message.chat.id,
+        '🌟 <b>Подписка PRO активирована!</b>\nСпасибо за оплату через Telegram Stars! Теперь вам доступны умные напоминания и неограниченный анализ.',
+      );
+      return new Response(JSON.stringify({ ok: true, action: 'payment_handled' }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       });

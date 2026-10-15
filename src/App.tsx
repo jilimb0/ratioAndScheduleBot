@@ -6,7 +6,7 @@ import {
   DollarSignIcon,
   SparklesIcon,
 } from '@ui-construction-library/icons';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { DEFAULT_SCHEDULE, PRO_PRICE_STARS } from './config';
 import type { ScheduleSlot } from './types';
 
@@ -17,11 +17,107 @@ export function App() {
   const [isProModalOpen, setIsProModalOpen] = useState(false);
   const [purchasedPro, setPurchasedPro] = useState(false);
 
+  const [newTime, setNewTime] = useState('14:00');
+  const [newMessage, setNewMessage] = useState('');
+  const [newCategory, setNewCategory] = useState<'work' | 'rest'>('work');
+  const [newDuration] = useState(45);
+
   const ratio = restHours > 0 ? Number((workHours / restHours).toFixed(2)) : 9.99;
   const isOptimal = ratio >= 1.2 && ratio <= 2.5;
 
+  useEffect(() => {
+    // 1. Hydrate state from Telegram WebApp CloudStorage or localStorage
+    const tg = (
+      window as unknown as {
+        Telegram?: {
+          WebApp?: {
+            CloudStorage?: {
+              getItem?: (k: string, cb: (err: unknown, val: string) => void) => void;
+              setItem?: (k: string, val: string) => void;
+            };
+          };
+        };
+      }
+    ).Telegram?.WebApp;
+
+    if (tg?.CloudStorage?.getItem) {
+      tg.CloudStorage.getItem('ratio_schedule_state', (_err, val) => {
+        if (val) {
+          try {
+            const parsed = JSON.parse(val);
+            if (parsed.workHours) setWorkHours(parsed.workHours);
+            if (parsed.restHours) setRestHours(parsed.restHours);
+            if (parsed.schedule) setSchedule(parsed.schedule);
+            if (parsed.purchasedPro) setPurchasedPro(parsed.purchasedPro);
+          } catch {
+            // Fallback
+          }
+        }
+      });
+    } else {
+      const local = localStorage.getItem('ratio_schedule_state');
+      if (local) {
+        try {
+          const parsed = JSON.parse(local);
+          if (parsed.workHours) setWorkHours(parsed.workHours);
+          if (parsed.restHours) setRestHours(parsed.restHours);
+          if (parsed.schedule) setSchedule(parsed.schedule);
+          if (parsed.purchasedPro) setPurchasedPro(parsed.purchasedPro);
+        } catch {
+          // Fallback
+        }
+      }
+    }
+  }, []);
+
+  const saveState = (updated: {
+    workHours?: number;
+    restHours?: number;
+    schedule?: ScheduleSlot[];
+    purchasedPro?: boolean;
+  }) => {
+    const payload = JSON.stringify({
+      workHours: updated.workHours ?? workHours,
+      restHours: updated.restHours ?? restHours,
+      schedule: updated.schedule ?? schedule,
+      purchasedPro: updated.purchasedPro ?? purchasedPro,
+    });
+    localStorage.setItem('ratio_schedule_state', payload);
+    const tg = (
+      window as unknown as {
+        Telegram?: {
+          WebApp?: {
+            CloudStorage?: {
+              setItem?: (k: string, val: string) => void;
+            };
+          };
+        };
+      }
+    ).Telegram?.WebApp;
+    tg?.CloudStorage?.setItem?.('ratio_schedule_state', payload);
+  };
+
   const toggleTask = (id: string) => {
-    setSchedule((prev) => prev.filter((item) => item.id !== id));
+    const updated = schedule.filter((item) => item.id !== id);
+    setSchedule(updated);
+    saveState({ schedule: updated });
+  };
+
+  const handleAddSlot = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMessage.trim()) return;
+    const newSlot: ScheduleSlot = {
+      id: `slot_${Date.now()}`,
+      time: newTime,
+      message: newMessage.trim(),
+      category: newCategory,
+      durationMinutes: newDuration,
+      buttonText: 'Выполнено',
+    };
+    const updated = [...schedule, newSlot].sort((a, b) => a.time.localeCompare(b.time));
+    setSchedule(updated);
+    saveState({ schedule: updated });
+    setNewMessage('');
   };
 
   return (
@@ -112,6 +208,51 @@ export function App() {
             <span>Расписание на сегодня ({schedule.length})</span>
           </h2>
         </div>
+
+        {/* TimePicker Slot Creator */}
+        <form
+          onSubmit={handleAddSlot}
+          className="bg-slate-900 border border-slate-800 rounded-xl p-3 mb-3 space-y-2.5"
+        >
+          <div className="flex justify-between items-center text-xs font-semibold text-slate-300">
+            <span>⏰ Добавить активность:</span>
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={() => setNewCategory('work')}
+                className={`text-[10px] px-2 py-0.5 rounded ${newCategory === 'work' ? 'bg-sky-500 text-white font-bold' : 'bg-slate-800 text-slate-400'}`}
+              >
+                Работа
+              </button>
+              <button
+                type="button"
+                onClick={() => setNewCategory('rest')}
+                className={`text-[10px] px-2 py-0.5 rounded ${newCategory === 'rest' ? 'bg-emerald-500 text-white font-bold' : 'bg-slate-800 text-slate-400'}`}
+              >
+                Отдых
+              </button>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="time"
+              value={newTime}
+              onChange={(e) => setNewTime(e.target.value)}
+              className="bg-slate-950 border border-slate-800 text-sky-400 font-mono text-xs px-2.5 py-1.5 rounded-lg focus:outline-none focus:border-sky-500"
+              title="Time Picker"
+            />
+            <input
+              type="text"
+              placeholder="Название активности..."
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              className="flex-1 bg-slate-950 border border-slate-800 text-slate-100 text-xs px-2.5 py-1.5 rounded-lg focus:outline-none focus:border-sky-500 placeholder-slate-500"
+            />
+            <Button type="submit" size="sm" variant="default" className="text-xs font-bold px-3">
+              +
+            </Button>
+          </div>
+        </form>
 
         <div className="space-y-2.5">
           {schedule.map((item) => (
