@@ -170,7 +170,11 @@ describe('Serverless Handler for ratioAndScheduleBot', () => {
         message: {
           message_id: 5,
           chat: { id: 98765 },
-          successful_payment: { currency: 'XTR', total_amount: 50 },
+          successful_payment: {
+            currency: 'XTR',
+            total_amount: 50,
+            telegram_payment_charge_id: 'charge_unique_1',
+          },
         },
       }),
     });
@@ -179,5 +183,84 @@ describe('Serverless Handler for ratioAndScheduleBot', () => {
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.action).toBe('payment_handled');
+  });
+
+  it('deduplicates duplicate successful_payment delivery without double-crediting', async () => {
+    const makeReq = () =>
+      new Request('https://worker.test/webhook', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-telegram-bot-api-secret-token': 'super-secret-token-123',
+        },
+        body: JSON.stringify({
+          update_id: 106,
+          message: {
+            message_id: 6,
+            chat: { id: 98765 },
+            successful_payment: {
+              currency: 'XTR',
+              total_amount: 50,
+              telegram_payment_charge_id: 'charge_unique_2',
+            },
+          },
+        }),
+      });
+
+    const res1 = await handleServerlessWebhook(makeReq(), env);
+    expect((await res1.json()).action).toBe('payment_handled');
+
+    // Replay with new update_id but identical charge_id
+    const replayReq = new Request('https://worker.test/webhook', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-telegram-bot-api-secret-token': 'super-secret-token-123',
+      },
+      body: JSON.stringify({
+        update_id: 107,
+        message: {
+          message_id: 7,
+          chat: { id: 98765 },
+          successful_payment: {
+            currency: 'XTR',
+            total_amount: 50,
+            telegram_payment_charge_id: 'charge_unique_2',
+          },
+        },
+      }),
+    });
+
+    const res2 = await handleServerlessWebhook(replayReq, env);
+    expect(res2.status).toBe(200);
+    const data2 = await res2.json();
+    expect(data2.action).toBe('payment_already_handled');
+  });
+
+  it('ignores duplicate update_id deliveries', async () => {
+    const makeReq = () =>
+      new Request('https://worker.test/webhook', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-telegram-bot-api-secret-token': 'super-secret-token-123',
+        },
+        body: JSON.stringify({
+          update_id: 200,
+          message: {
+            message_id: 200,
+            chat: { id: 99999 },
+            text: '/start',
+          },
+        }),
+      });
+
+    const res1 = await handleServerlessWebhook(makeReq(), env);
+    expect(res1.status).toBe(200);
+
+    const res2 = await handleServerlessWebhook(makeReq(), env);
+    expect(res2.status).toBe(200);
+    const data2 = await res2.json();
+    expect(data2.action).toBe('duplicate_update_ignored');
   });
 });

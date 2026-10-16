@@ -7,6 +7,8 @@ import {
 } from '@tgwrapper/core';
 import { createRatioBot } from './bot';
 import { DEFAULT_SCHEDULE } from './config';
+import { globalFloodLimiter, type TokenBucketLimiter } from './limiter';
+import { globalPaymentIdempotency, type PaymentIdempotencyManager } from './payment-idempotency';
 import type { CompletedTask } from './types';
 
 export interface ServerlessEnv {
@@ -15,6 +17,8 @@ export interface ServerlessEnv {
   WEBHOOK_SECRET?: string;
   client?: BotClient;
   apiClient?: ApiClient;
+  floodLimiter?: TokenBucketLimiter;
+  paymentIdempotency?: PaymentIdempotencyManager;
 }
 
 export interface WebhookResult {
@@ -105,8 +109,47 @@ export async function handleServerlessWebhook(
   try {
     const update = (await request.json()) as Update;
     const bot = createRatioBot({ token: env.BOT_TOKEN, client: env.client });
+    const paymentIdempotency = env.paymentIdempotency ?? globalPaymentIdempotency;
+    const floodLimiter = env.floodLimiter ?? globalFloodLimiter;
 
     const updateObj = update as Record<string, unknown>;
+
+    // 1. Webhook Update Deduplication
+    if (typeof update.update_id === 'number') {
+      if (!paymentIdempotency.claimUpdate(update.update_id)) {
+        return new Response(JSON.stringify({ ok: true, action: 'duplicate_update_ignored' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
+    // 2. Flood Control Rate Limiting (Token Bucket per chat/user)
+    const senderId =
+      update.message?.from?.id ??
+      update.message?.chat?.id ??
+      update.callback_query?.from?.id ??
+      (updateObj.inline_query as { from?: { id?: number } })?.from?.id;
+
+    if (senderId) {
+      const limitResult = floodLimiter.consume(String(senderId));
+      if (!limitResult.allowed) {
+        return new Response(
+          JSON.stringify({
+            ok: false,
+            error: 'Too Many Requests (Flood Control)',
+            retryAfterMs: limitResult.retryAfterMs,
+          }),
+          {
+            status: 429,
+            headers: {
+              'Content-Type': 'application/json',
+              'Retry-After': String(Math.ceil(limitResult.retryAfterMs / 1000)),
+            },
+          },
+        );
+      }
+    }
 
     // Handle pre_checkout_query for Stars
     if (updateObj.pre_checkout_query) {
@@ -187,9 +230,30 @@ export async function handleServerlessWebhook(
       });
     }
 
-    // Handle successful_payment
+    // Handle successful_payment with Idempotency
     const msgObj = update.message as Record<string, unknown> | undefined;
     if (msgObj?.successful_payment && update.message?.chat?.id) {
+      const sp = msgObj.successful_payment as {
+        telegram_payment_charge_id?: string;
+        provider_payment_charge_id?: string;
+      };
+      const chargeId = sp.telegram_payment_charge_id || sp.provider_payment_charge_id || '';
+      const userId = update.message.from?.id;
+
+      if (chargeId && !paymentIdempotency.claimPayment(chargeId, userId)) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            action: 'payment_already_handled',
+            chargeId,
+          }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        );
+      }
+
       await bot.client.sendMessage(
         update.message.chat.id,
         '🌟 <b>Подписка PRO активирована!</b>\nСпасибо за оплату через Telegram Stars! Теперь вам доступны умные напоминания и неограниченный анализ.',
