@@ -1,4 +1,4 @@
-# План внедрения System Design и архитектурной устойчивости: ratioAndScheduleBot
+# Отчет о внедрении System Design и архитектурной устойчивости: ratioAndScheduleBot
 
 > **Статус:** [x] Имплементировано (100%)  
 > **Область:** Token Bucket Rate Limiting, Telegram Stars Payment Idempotency (`telegram_payment_charge_id`), Webhook Deduplication  
