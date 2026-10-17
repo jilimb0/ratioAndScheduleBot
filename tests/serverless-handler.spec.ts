@@ -24,6 +24,21 @@ describe('Serverless Handler for ratioAndScheduleBot', () => {
     expect(data.status).toBe('healthy');
   });
 
+  it('responds with 200 on /healthz and echoes correlation ID with defensive headers', async () => {
+    const req = new Request('https://worker.test/healthz', {
+      method: 'GET',
+      headers: { 'x-correlation-id': 'cid-test-4321' },
+    });
+    const res = await handleServerlessWebhook(req, env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('x-correlation-id')).toBe('cid-test-4321');
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(res.headers.get('x-frame-options')).toBe('DENY');
+    expect(res.headers.get('referrer-policy')).toBe('strict-origin-when-cross-origin');
+    const data = await res.json();
+    expect(data.status).toBe('healthy');
+  });
+
   it('rejects invalid secret tokens with 401', async () => {
     const req = new Request('https://worker.test/webhook', {
       method: 'POST',

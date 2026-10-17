@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { dirname, extname, join, normalize, sep } from 'node:path';
@@ -212,10 +213,20 @@ export function createHttpServer(config: ServerConfig) {
   return createServer(async (req: IncomingMessage, res: ServerResponse) => {
     try {
       const url = new URL(req.url ?? '/', 'http://localhost');
+      const rawCorrelationId = req.headers['x-correlation-id'] || req.headers['x-request-id'];
+      const correlationId = Array.isArray(rawCorrelationId)
+        ? rawCorrelationId[0]
+        : rawCorrelationId || randomUUID();
+      res.setHeader('X-Correlation-ID', correlationId);
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('X-Frame-Options', 'DENY');
+      res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
 
       if (
         url.pathname === '/health' ||
+        url.pathname === '/healthz' ||
         url.pathname === '/api/health' ||
+        url.pathname === '/api/healthz' ||
         url.pathname === '/webhook' ||
         (url.pathname.startsWith('/api/') && req.method === 'POST')
       ) {

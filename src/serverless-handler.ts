@@ -40,12 +40,28 @@ export async function handleServerlessWebhook(
   const url = new URL(request.url);
 
   // 1. Health check
-  if (url.pathname === '/health' || url.pathname === '/api/health') {
+  if (
+    url.pathname === '/health' ||
+    url.pathname === '/healthz' ||
+    url.pathname === '/api/health' ||
+    url.pathname === '/api/healthz'
+  ) {
+    const correlationId =
+      request.headers.get('x-correlation-id') || request.headers.get('x-request-id');
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+    };
+    if (correlationId) {
+      headers['X-Correlation-ID'] = correlationId;
+    }
     return new Response(
       JSON.stringify({ ok: true, status: 'healthy', runtime: 'telegram-serverless' }),
       {
         status: 200,
-        headers: { 'Content-Type': 'application/json' },
+        headers,
       },
     );
   }
