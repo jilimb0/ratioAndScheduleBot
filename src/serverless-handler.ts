@@ -88,7 +88,8 @@ export async function handleServerlessWebhook(
           headers: { 'Content-Type': 'application/json' },
         },
       );
-    } catch {
+    } catch (err) {
+      console.warn('[Serverless-Payload-Error]', err);
       return new Response(JSON.stringify({ ok: false, error: 'Invalid payload' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
@@ -179,8 +180,8 @@ export async function handleServerlessWebhook(
             pre_checkout_query_id: pcq.id,
             ok: true,
           });
-        } catch {
-          // ignore
+        } catch (err) {
+          console.warn('[PreCheckout-Failed]', err);
         }
       }
       return new Response(JSON.stringify({ ok: true, action: 'pre_checkout_query_handled' }), {
@@ -214,8 +215,8 @@ export async function handleServerlessWebhook(
             results,
             cache_time: 10,
           });
-        } catch {
-          // ignore
+        } catch (err) {
+          console.warn('[InlineQuery-Failed]', err);
         }
       }
       return new Response(JSON.stringify({ ok: true, action: 'inline_query_handled' }), {
@@ -232,8 +233,8 @@ export async function handleServerlessWebhook(
 
       try {
         await bot.client.answerCallbackQuery(cq.id, { text: resultText });
-      } catch {
-        // Non-blocking if Telegram answer fails
+      } catch (err) {
+        console.warn('[AnswerCallbackQuery-Failed]', err);
       }
 
       if (cq.message?.chat?.id) {
@@ -315,7 +316,8 @@ export async function handleScheduledBriefings(
   targetChatIds: (string | number)[],
 ): Promise<{ dispatched: number; failed: number }> {
   const client =
-    env.apiClient ?? (env.client ? (env.client as any) : new ApiClient({ token: env.BOT_TOKEN }));
+    env.apiClient ??
+    (env.client ? (env.client as unknown as ApiClient) : new ApiClient({ token: env.BOT_TOKEN }));
   let dispatched = 0;
   let failed = 0;
 
@@ -329,7 +331,8 @@ export async function handleScheduledBriefings(
     try {
       await client.sendMessage(chatId, briefingText, { parse_mode: 'HTML' });
       dispatched++;
-    } catch {
+    } catch (err) {
+      console.warn('[Briefing-Dispatch-Failed]', err);
       failed++;
     }
   }

@@ -247,7 +247,8 @@ export function createHttpServer(config: ServerConfig) {
           filePath = join(filePath, 'index.html');
           await stat(filePath);
         }
-      } catch {
+      } catch (err) {
+        // Fallback to SPA index.html
         filePath = join(config.staticDir, 'index.html');
       }
       try {
@@ -255,7 +256,7 @@ export function createHttpServer(config: ServerConfig) {
         res.statusCode = 200;
         res.setHeader('Content-Type', getContentType(filePath));
         res.end(data);
-      } catch {
+      } catch (err) {
         res.statusCode = 404;
         res.end('Not found');
       }

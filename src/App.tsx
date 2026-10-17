@@ -9,6 +9,8 @@ import {
 import { useEffect, useState } from 'react';
 import { DEFAULT_SCHEDULE, PRO_PRICE_STARS } from './config';
 import type { ScheduleSlot } from './types';
+import { EmptyState } from './components/EmptyState';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 export function App() {
   const [workHours, setWorkHours] = useState(6);
@@ -49,7 +51,7 @@ export function App() {
             if (parsed.restHours) setRestHours(parsed.restHours);
             if (parsed.schedule) setSchedule(parsed.schedule);
             if (parsed.purchasedPro) setPurchasedPro(parsed.purchasedPro);
-          } catch {
+          } catch (err) { console.error("[UDPA-Handled]", err);
             // Fallback
           }
         }
@@ -63,8 +65,8 @@ export function App() {
           if (parsed.restHours) setRestHours(parsed.restHours);
           if (parsed.schedule) setSchedule(parsed.schedule);
           if (parsed.purchasedPro) setPurchasedPro(parsed.purchasedPro);
-        } catch {
-          // Fallback
+        } catch (err) {
+          console.warn('[Storage-Fallback]', err);
         }
       }
     }
@@ -121,7 +123,8 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 max-w-lg mx-auto font-sans">
+    <ErrorBoundary>
+      <div className="min-h-screen bg-slate-950 text-slate-100 p-4 max-w-lg mx-auto font-sans">
       {/* Header */}
       <header className="flex justify-between items-center mb-6">
         <div>
@@ -255,7 +258,13 @@ export function App() {
         </form>
 
         <div className="space-y-2.5">
-          {schedule.map((item) => (
+          {schedule.length === 0 ? (
+            <EmptyState
+              onAction={() => setSchedule(DEFAULT_SCHEDULE)}
+              actionText="Загрузить демо-план"
+            />
+          ) : (
+            schedule.map((item) => (
             <Card
               key={item.id}
               elevation="flat"
@@ -285,12 +294,7 @@ export function App() {
                 <CheckIcon className="w-4 h-4" />
               </Button>
             </Card>
-          ))}
-          {schedule.length === 0 && (
-            <div className="p-6 text-center text-xs text-slate-500 bg-slate-900/40 rounded-xl border border-slate-800/40">
-              🎉 Все задачи на сегодня выполнены! Прекрасный результат.
-            </div>
-          )}
+          )))}
         </div>
       </section>
 
@@ -342,6 +346,7 @@ export function App() {
           </Card>
         </div>
       )}
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 }

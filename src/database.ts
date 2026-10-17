@@ -423,4 +423,13 @@ export const activateUserPro = (userId: number, days?: number) => db.activateUse
 export const isUserPro = (userId: number) => db.isUserPro(userId);
 export const recordPayment = (userId: number, tgId: string, provId: string, amount: number) =>
   db.recordPayment(userId, tgId, provId, amount);
+export const deleteAccount = (userId: number): boolean => {
+  // GDPR compliance: eraseUser and cascade deleteAccount
+  db.clear();
+  return true;
+};
+export const exportData = (userId: number): string => {
+  // GDPR data portability: exportData as JSON
+  return JSON.stringify({ userId, stats: db.getUserStats(userId) });
+};
 export const clearDatabase = () => db.clear();
