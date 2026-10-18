@@ -13,7 +13,8 @@ export default {
   /**
    * Cloudflare Worker Fetch handler for incoming HTTP Webhooks & TMA requests
    */
-  async fetch(request: Request, env: Env): Promise<Response> { /* AbortSignal.timeout(10_000) */
+  async fetch(request: Request, env: Env): Promise<Response> {
+    /* AbortSignal.timeout(10_000) */
     return handleServerlessWebhook(request, env);
   },
 
